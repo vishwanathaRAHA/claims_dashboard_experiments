@@ -15,16 +15,10 @@
             window.isViewOnlyFromURL = false;
             window.sharedDataId = null;
             
-            // Check for JSONBin ID (new format) or localStorage ID (old format)
-            if (params.get('mode') === 'view' && params.get('id')) {
-                window.isViewOnlyFromURL = true;
-                window.sharedDataId = params.get('id');
-                window.isJSONBinShare = true;
-                document.documentElement.classList.add('view-only-mode');
-            } else if (params.get('mode') === 'view' && params.get('data')) {
+            // Check for embedded data in URL (offline view-only link)
+            if (params.get('mode') === 'view' && params.get('data')) {
                 window.isViewOnlyFromURL = true;
                 window.sharedDataId = params.get('data');
-                window.isJSONBinShare = false;
                 document.documentElement.classList.add('view-only-mode');
             }
         })();
@@ -285,14 +279,10 @@
             /* Share modal */
             #shareModal .drill-content {
                 width: 95% !important;
-                margin: 10px !important;
-                max-height: 85vh !important;
-                overflow-y: auto !important;
             }
             
             #shareLink {
-                font-size: 10px !important;
-                padding: 8px !important;
+                font-size: 11px !important;
             }
             
             /* Hide some elements on mobile for cleaner look */
@@ -811,8 +801,14 @@
                 <p id="copyStatus" class="text-sm text-green-600 mt-2 hidden"><i class="fas fa-check"></i> Link copied to clipboard!</p>
             </div>
             
-            <div id="shareInstructions" class="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-                <!-- Instructions will be dynamically updated -->
+            <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                <div class="flex items-start gap-3">
+                    <i class="fas fa-cloud text-green-600 mt-1"></i>
+                    <div>
+                        <p class="text-sm text-green-800 font-medium">Link-Based Sharing (Works Anywhere!)</p>
+                        <p class="text-sm text-green-700 mt-1">Your data is safely packed inside the link itself. Share with anyone – they can open it in any browser, any device. No server or signup required.</p>
+                    </div>
+                </div>
             </div>
             
             <div class="bg-amber-50 border border-amber-200 rounded-lg p-4">
@@ -858,7 +854,7 @@
     <!-- Version Banner (hidden in view-only mode) -->
     <div id="versionBanner" class="bg-gradient-to-r from-green-600 to-emerald-600 text-white text-center py-2 text-sm font-medium">
         <i class="fas fa-check-circle mr-2"></i>
-        Dashboard v2.7 | Last Updated: <span id="versionDate"></span>
+        Dashboard v2.6 | Last Updated: <span id="versionDate"></span>
         <script>document.getElementById('versionDate').textContent = new Date().toLocaleString('en-US', {month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'});</script>
     </div>
 
@@ -1392,11 +1388,6 @@
             populateFilters();
             filteredData = [...rawData];
             updateDashboard();
-            
-            // Show share button if not in view-only mode
-            if (!window.isViewOnlyFromURL) {
-                document.getElementById('shareBtn').classList.remove('hidden');
-            }
         }
 
         function populateFilters() {
@@ -2760,70 +2751,7 @@ This report was generated from the Claims Analytics Dashboard.
 
         // ============ VIEW-ONLY & SHARING FUNCTIONALITY ============
 
-        const JSONBIN_API_KEY = '$2a$10$UBVOOvQrNZ4UFEp7hXgc8.jAu2cXuFsXC25ygmI5cdD44jeyI/B.S';
-
         let isViewOnlyMode = false;
-
-        async function loadSharedDataFromJSONBin(binId) {
-            showLoading(true);
-            document.getElementById('loadingOverlay').querySelector('p').textContent = 'Loading shared dashboard...';
-            
-            try {
-                const response = await fetch(`https://api.jsonbin.io/v3/b/${binId}`, {
-                    method: 'GET',
-                    headers: {
-                        'X-Master-Key': JSONBIN_API_KEY
-                    }
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`Failed to load: ${response.status} ${response.statusText}`);
-                }
-                
-                const result = await response.json();
-                const parsed = result.record;
-                
-                if (parsed && parsed.data) {
-                    rawData = parsed.data;
-                    columnMapping = parsed.columnMapping || {};
-                    
-                    if (parsed.premium) {
-                        const premiumInput = document.getElementById('premiumInput');
-                        if (premiumInput) premiumInput.value = parsed.premium;
-                    }
-                    
-                    applyViewOnlyMode();
-                    
-                    const uploadSection = document.getElementById('uploadSection');
-                    if (uploadSection) uploadSection.style.display = 'none';
-                    
-                    document.getElementById('lastUpdated').textContent = `Shared: ${parsed.createdAt || 'View-only'}`;
-                    
-                    detectGroupField();
-                    populateFilters();
-                    filteredData = [...rawData];
-
-                    const dashboardContent = document.getElementById('dashboardContent');
-                    if (dashboardContent) {
-                        dashboardContent.classList.remove('hidden');
-                    }
-
-                    updateDashboard();
-                    updatePremiumRatio();
-                    
-                    const shareBtn = document.getElementById('shareBtn');
-                    if (shareBtn) shareBtn.style.display = 'none';
-                }
-            } catch (error) {
-                console.error('Load error:', error);
-                
-                // Try to load sample data as fallback
-                alert('Unable to load shared data. Loading sample data instead. Error: ' + error.message);
-                loadSampleData();
-            }
-            
-            showLoading(false);
-        }
 
         async function loadSharedDataFromDataString(dataStr) {
             showLoading(true);
@@ -2872,36 +2800,6 @@ This report was generated from the Claims Analytics Dashboard.
             showLoading(false);
         }
 
-        async function saveDataToJSONBin() {
-            const premiumVal = document.getElementById('premiumInput')?.value || 0;
-            const dataToSave = {
-                data: rawData,
-                columnMapping: columnMapping,
-                premium: premiumVal,
-                createdAt: new Date().toLocaleString(),
-                recordCount: rawData.length
-            };
-            
-            try {
-                const response = await fetch('https://api.jsonbin.io/v3/b', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Master-Key': JSONBIN_API_KEY,
-                        'X-Bin-Private': 'false'
-                    },
-                    body: JSON.stringify(dataToSave)
-                });
-                
-                if (!response.ok) throw new Error('Failed to save');
-                
-                const result = await response.json();
-                return result.metadata.id;
-            } catch (error) {
-                throw error;
-            }
-        }
-
         function applyViewOnlyMode() {
             document.getElementById('viewOnlyBadge').classList.remove('hidden');
             
@@ -2932,106 +2830,35 @@ This report was generated from the Claims Analytics Dashboard.
         async function generateShareLink() {
             const generateBtn = document.querySelector('button[onclick="generateShareLink()"]');
             const originalText = generateBtn.innerHTML;
-            
-            // Get the current URL properly for both local and hosted environments
-            let baseUrl = '';
-            if (window.location.protocol === 'file:') {
-                // For local file:// protocol, we need to provide instructions
-                alert('⚠️ Local File Sharing Limitation\n\nWhen running from a local file, the share link will only work if the recipient also opens the HTML file locally.\n\nFor best results, host this file on a web server or use GitHub Pages.');
-                baseUrl = window.location.href.split('#')[0].split('?')[0];
-            } else {
-                // For http/https protocols
-                const url = new URL(window.location.href);
-                url.search = ''; // Remove existing query parameters
-                url.hash = ''; // Remove hash
-                baseUrl = url.toString();
-            }
+            const baseUrl = window.location.href.split('#')[0].split('?')[0];
 
             try {
-                generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
+                generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Preparing...';
                 generateBtn.disabled = true;
-                
-                const binId = await saveDataToJSONBin();
-                const shareUrl = `${baseUrl}?mode=view&id=${binId}`;
-                
+
+                const premiumVal = document.getElementById('premiumInput')?.value || 0;
+                const dataToSave = {
+                    data: rawData,
+                    columnMapping: columnMapping,
+                    premium: premiumVal,
+                    createdAt: new Date().toLocaleString(),
+                    recordCount: rawData.length
+                };
+
+                const encoded = encodeURIComponent(btoa(JSON.stringify(dataToSave)));
+                const shareUrl = `${baseUrl}?mode=view&data=${encoded}`;
+
                 document.getElementById('shareLink').value = shareUrl;
-                
+
                 generateBtn.innerHTML = '<i class="fas fa-check"></i> Link Ready!';
                 setTimeout(() => {
                     generateBtn.innerHTML = originalText;
                     generateBtn.disabled = false;
                 }, 2000);
-                
-                // Also update the share modal to show proper instructions
-                updateShareInstructions(baseUrl);
-                
             } catch (error) {
-                console.error('Cloud share failed, falling back to offline link:', error);
-                try {
-                    const premiumVal = document.getElementById('premiumInput')?.value || 0;
-                    const dataToSave = {
-                        data: rawData,
-                        columnMapping: columnMapping,
-                        premium: premiumVal,
-                        createdAt: new Date().toLocaleString(),
-                        recordCount: rawData.length
-                    };
-                    const encoded = encodeURIComponent(btoa(JSON.stringify(dataToSave)));
-                    const shareUrl = `${baseUrl}?mode=view&data=${encoded}`;
-                    document.getElementById('shareLink').value = shareUrl;
-                    
-                    generateBtn.innerHTML = '<i class="fas fa-link"></i> Offline Link Ready';
-                    
-                    // Update instructions for offline mode
-                    document.getElementById('shareInstructions').innerHTML = `
-                        <div class="flex items-start gap-3">
-                            <i class="fas fa-file-export text-green-600 mt-1"></i>
-                            <div>
-                                <p class="text-sm text-green-800 font-medium">📁 Offline Sharing (Works Locally)</p>
-                                <p class="text-sm text-green-700 mt-1">Your data is embedded in the link. Works when both sender and recipient have the HTML file locally. For online sharing, ensure JSONBin API key is valid.</p>
-                            </div>
-                        </div>
-                    `;
-                    
-                } catch (innerError) {
-                    alert('Error generating share link: ' + innerError.message);
-                    generateBtn.innerHTML = originalText;
-                } finally {
-                    generateBtn.disabled = false;
-                }
-            }
-        }
-
-        function updateShareInstructions(baseUrl) {
-            const instructionEl = document.getElementById('shareInstructions');
-            if (!instructionEl) return;
-            
-            if (baseUrl.startsWith('file://')) {
-                instructionEl.innerHTML = `
-                    <div class="flex items-start gap-3">
-                        <i class="fas fa-laptop-house text-green-600 mt-1"></i>
-                        <div>
-                            <p class="text-sm text-green-800 font-medium">📁 Local File Sharing</p>
-                            <p class="text-sm text-green-700 mt-1">Recipients must:</p>
-                            <ol class="text-xs text-green-700 mt-1 list-decimal pl-4">
-                                <li>Save the HTML file to their computer</li>
-                                <li>Open the file in their browser</li>
-                                <li>Use the shared link you provide</li>
-                            </ol>
-                            <p class="text-xs text-green-800 font-medium mt-2">For online sharing, host this file on GitHub Pages or a web server.</p>
-                        </div>
-                    </div>
-                `;
-            } else {
-                instructionEl.innerHTML = `
-                    <div class="flex items-start gap-3">
-                        <i class="fas fa-cloud text-green-600 mt-1"></i>
-                        <div>
-                            <p class="text-sm text-green-800 font-medium">☁️ Cloud Sharing (Works Everywhere!)</p>
-                            <p class="text-sm text-green-700 mt-1">Your data is securely stored online using JSONBin. Share with anyone - they can open the link in any browser, any device! No signup required.</p>
-                        </div>
-                    </div>
-                `;
+                alert('Error generating share link: ' + error.message);
+                generateBtn.innerHTML = originalText;
+                generateBtn.disabled = false;
             }
         }
 
@@ -3092,18 +2919,23 @@ This report was generated from the Claims Analytics Dashboard.
             }
         }
 
+        const originalInitializeDashboard = initializeDashboard;
+        initializeDashboard = function() {
+            originalInitializeDashboard();
+            
+            if (!isViewOnlyMode) {
+                document.getElementById('shareBtn').classList.remove('hidden');
+            }
+        };
+
         document.addEventListener('DOMContentLoaded', () => {
             if (window.isViewOnlyFromURL && window.sharedDataId) {
                 isViewOnlyMode = true;
-                
+
                 const uploadSection = document.getElementById('uploadSection');
                 if (uploadSection) uploadSection.style.display = 'none';
-                
-                if (window.isJSONBinShare) {
-                    loadSharedDataFromJSONBin(window.sharedDataId);
-                } else {
-                    loadSharedDataFromDataString(window.sharedDataId);
-                }
+
+                loadSharedDataFromDataString(window.sharedDataId);
             }
         });
     </script>
