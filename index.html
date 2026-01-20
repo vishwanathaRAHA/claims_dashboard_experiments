@@ -11,20 +11,25 @@
     <script>
         // Immediately check for view-only mode and set a flag BEFORE page renders
         (function() {
+            // 1. Get all parameters first so variables are defined
             var params = new URLSearchParams(window.location.search);
+            var id = params.get('id');
+            var src = params.get('src');       // when present, indicates alternative cloud source (e.g. 'blob' or 'local')
+            var dataParam = params.get('data'); // embedded data for legacy links
+            var mode = params.get('mode');
+
+            // 2. Initialize State
             window.isViewOnlyFromURL = false;
             window.sharedDataId = null;
             window.isJSONBinShare = false;
             window.shareSource = null; // 'jsonbin' | 'blob' | 'data' | 'local'
             
-            var id = params.get('id');
-            var dataParam = params.get('data');
-            var src = params.get('src'); // when present, indicates alternative cloud source (e.g. 'blob' or 'local')
-            
-            // Prefer cloud/local-based sharing whenever an id is present
+            // 3. Logic to determine mode
             if (id) {
+                // We have an ID, so it is a view-only share
                 window.isViewOnlyFromURL = true;
                 window.sharedDataId = id;
+
                 if (src === 'blob') {
                     // JSONBlob-based share
                     window.shareSource = 'blob';
@@ -34,12 +39,15 @@
                     window.shareSource = 'local';
                     window.isJSONBinShare = false;
                 } else {
-                    // Default: JSONBin-based share
+                    // Default: JSONBin-based share (If src is null or undefined, we assume JSONBin)
                     window.shareSource = 'jsonbin';
                     window.isJSONBinShare = true;
                 }
+                
+                // Add the CSS class for view mode immediately
                 document.documentElement.classList.add('view-only-mode');
-            } else if (params.get('mode') === 'view' && dataParam) {
+
+            } else if (mode === 'view' && dataParam) {
                 // Backwards-compatible: embedded data in URL (older offline view-only link)
                 window.isViewOnlyFromURL = true;
                 window.sharedDataId = dataParam;
@@ -2778,6 +2786,7 @@ This report was generated from the Claims Analytics Dashboard.
         // ============ VIEW-ONLY & SHARING FUNCTIONALITY ============
 
         const JSONBIN_API_KEY = '$2a$10$DpQmvIIcKI4hBxBV1PURxudIGbJmY.aoC0OrijfkYkIWOoZz5fkO.';
+        const JSONBIN_ACCESS_KEY = '$2a$10$uAi0fON56tgj4j523LSLYebVyBfQIR5jMX8aaWasi/eUP0rUd7Jmy';
         let isViewOnlyMode = false;
 
         // Primary loader: JSONBin-based share (short URL)
