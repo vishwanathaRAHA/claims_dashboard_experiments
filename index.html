@@ -3135,11 +3135,30 @@ This report was generated from the Claims Analytics Dashboard.
                 generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
                 generateBtn.disabled = true;
 
-                // Use JSONBin only, to create short, shareable links like yourdashboard.com?id=abc123
-                const binId = await saveDataToJSONBin();
-                const shareUrl = `${baseUrl}?id=${binId}`;
+                const linkInput = document.getElementById('shareLink');
+                let shareUrl = '';
 
-                document.getElementById('shareLink').value = shareUrl;
+                try {
+                    // PRIMARY: JSONBin (short links like yourdashboard.com?id=abc123)
+                    const binId = await saveDataToJSONBin();
+                    shareUrl = `${baseUrl}?id=${binId}`;
+                } catch (jsonBinError) {
+                    console.warn('JSONBin save failed, falling back to JSONBlob...', jsonBinError);
+
+                    // If JSONBin free limit (100kb) or any other JSONBin error occurs,
+                    // fall back to JSONBlob which has a higher free size limit.
+                    if (linkInput) {
+                        linkInput.value = 'Uploading to fallback cloud storage...';
+                    }
+
+                    const blobId = await saveDataToJSONBlob();
+                    // Mark this link as JSONBlob-based so the loader knows which source to use
+                    shareUrl = `${baseUrl}?src=blob&id=${blobId}`;
+                }
+
+                if (linkInput) {
+                    linkInput.value = shareUrl;
+                }
 
                 generateBtn.innerHTML = '<i class="fas fa-check"></i> Link Ready!';
                 setTimeout(() => {
@@ -3147,8 +3166,7 @@ This report was generated from the Claims Analytics Dashboard.
                     generateBtn.disabled = false;
                 }, 2000);
             } catch (error) {
-                // Show the actual JSONBin error (e.g., 403) instead of a generic "Failed to fetch" from any fallback
-                alert('Error generating share link: ' + error.message);
+                alert('Error generating share link: ' + error.message + '\nIf this is a very large file, try again later or reduce the data size.');
                 generateBtn.innerHTML = originalText;
                 generateBtn.disabled = false;
             }
