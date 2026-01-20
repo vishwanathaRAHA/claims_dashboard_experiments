@@ -16,14 +16,14 @@
             window.sharedDataId = null;
             window.isJSONBinShare = false;
             
-            // Prefer JSONBin-based sharing when an id is present
-            if (params.get('mode') === 'view' && params.get('id')) {
+            // NEW: Prefer JSONBin-based sharing whenever an id is present (no mode=view required)
+            if (params.get('id')) {
                 window.isViewOnlyFromURL = true;
                 window.sharedDataId = params.get('id');
                 window.isJSONBinShare = true;
                 document.documentElement.classList.add('view-only-mode');
             } else if (params.get('mode') === 'view' && params.get('data')) {
-                // Backwards-compatible: embedded data in URL (offline view-only link)
+                // Backwards-compatible: embedded data in URL (older offline view-only link)
                 window.isViewOnlyFromURL = true;
                 window.sharedDataId = params.get('data');
                 window.isJSONBinShare = false;
@@ -813,8 +813,8 @@
                 <div class="flex items-start gap-3">
                     <i class="fas fa-cloud text-green-600 mt-1"></i>
                     <div>
-                        <p class="text-sm text-green-800 font-medium">Link-Based Sharing (Works Anywhere!)</p>
-                        <p class="text-sm text-green-700 mt-1">Your data is safely packed inside the link itself. Share with anyone – they can open it in any browser, any device. No server or signup required.</p>
+                        <p class="text-sm text-green-800 font-medium">Cloud Sharing via JSONBin (Recommended)</p>
+                        <p class="text-sm text-green-700 mt-1">When you click <strong>Generate Link</strong>, your report (not the Excel file) is securely saved to JSONBin.io. You get a short link like <code>https://yourdashboard.com?id=abc123</code>. Anyone with the link can open a view-only dashboard in any browser, on any device.</p>
                     </div>
                 </div>
             </div>
@@ -2932,33 +2932,9 @@ This report was generated from the Claims Analytics Dashboard.
                 generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
                 generateBtn.disabled = true;
 
-                // Try JSONBin first for short, robust URLs
-                let shareUrl;
-                try {
-                    const binId = await saveDataToJSONBin();
-                    shareUrl = `${baseUrl}?mode=view&id=${binId}`;
-                } catch (cloudErr) {
-                    console.warn('Cloud save failed, falling back to offline link:', cloudErr);
-
-                    // Fallback: offline data-embedded link (for smaller datasets)
-                    const premiumVal = document.getElementById('premiumInput')?.value || 0;
-                    const dataToSave = {
-                        data: rawData,
-                        columnMapping: columnMapping,
-                        premium: premiumVal,
-                        createdAt: new Date().toLocaleString(),
-                        recordCount: rawData.length
-                    };
-
-                    const encoded = encodeURIComponent(btoa(JSON.stringify(dataToSave)));
-
-                    // Guard against extremely long URLs to avoid "URI Too Long"
-                    if (encoded.length > 6000) {
-                        throw new Error('Dataset too large for offline link and cloud upload failed. Please try again later or reduce data size.');
-                    }
-
-                    shareUrl = `${baseUrl}?mode=view&data=${encoded}`;
-                }
+                // PRIMARY: always use JSONBin for short, shareable URLs like yourdashboard.com?id=abc123
+                const binId = await saveDataToJSONBin();
+                const shareUrl = `${baseUrl}?id=${binId}`;
 
                 document.getElementById('shareLink').value = shareUrl;
 
@@ -2968,7 +2944,7 @@ This report was generated from the Claims Analytics Dashboard.
                     generateBtn.disabled = false;
                 }, 2000);
             } catch (error) {
-                alert('Error generating share link: ' + error.message);
+                alert('Error generating share link: ' + error.message + '\nPlease check your internet connection or JSONBin status.');
                 generateBtn.innerHTML = originalText;
                 generateBtn.disabled = false;
             }
