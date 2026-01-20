@@ -3135,19 +3135,9 @@ This report was generated from the Claims Analytics Dashboard.
                 generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
                 generateBtn.disabled = true;
 
-                let shareUrl;
-
-                try {
-                    // Primary: JSONBin (short, cross-browser links like yourdashboard.com?id=abc123)
-                    const binId = await saveDataToJSONBin();
-                    shareUrl = `${baseUrl}?id=${binId}`;
-                } catch (cloudErr) {
-                    console.warn('JSONBin save failed, falling back to JSONBlob:', cloudErr);
-
-                    // Fallback: JSONBlob (no API key, still cloud-based & shareable across browsers)
-                    const blobId = await saveDataToJSONBlob();
-                    shareUrl = `${baseUrl}?src=blob&id=${blobId}`;
-                }
+                // Use JSONBin only, to create short, shareable links like yourdashboard.com?id=abc123
+                const binId = await saveDataToJSONBin();
+                const shareUrl = `${baseUrl}?id=${binId}`;
 
                 document.getElementById('shareLink').value = shareUrl;
 
@@ -3157,7 +3147,8 @@ This report was generated from the Claims Analytics Dashboard.
                     generateBtn.disabled = false;
                 }, 2000);
             } catch (error) {
-                alert('Error generating share link: ' + error.message + '\nPlease check your internet connection or cloud sharing status.');
+                // Show the actual JSONBin error (e.g., 403) instead of a generic "Failed to fetch" from any fallback
+                alert('Error generating share link: ' + error.message);
                 generateBtn.innerHTML = originalText;
                 generateBtn.disabled = false;
             }
