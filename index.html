@@ -1,0 +1,3111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claims Analytics Dashboard | Power BI Style</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        // Immediately check for view-only mode and set a flag BEFORE page renders
+        (function() {
+            var params = new URLSearchParams(window.location.search);
+            window.isViewOnlyFromURL = false;
+            window.sharedDataId = null;
+            
+            // Check for JSONBin ID (new format) or localStorage ID (old format)
+            if (params.get('mode') === 'view' && params.get('id')) {
+                window.isViewOnlyFromURL = true;
+                window.sharedDataId = params.get('id');
+                window.isJSONBinShare = true;
+                document.documentElement.classList.add('view-only-mode');
+            } else if (params.get('mode') === 'view' && params.get('data')) {
+                window.isViewOnlyFromURL = true;
+                window.sharedDataId = params.get('data');
+                window.isJSONBinShare = false;
+                document.documentElement.classList.add('view-only-mode');
+            }
+        })();
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        /* Floating Background Animation */
+        .floating-background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: -1;
+            overflow: hidden;
+        }
+        
+        .float-icon {
+            position: absolute;
+            font-size: 2rem; /* Smaller and cute */
+            animation: float 35s infinite linear;
+            opacity: 0.35; /* Increased opacity for better visibility */
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+            z-index: 0; /* Ensure visible behind transparent cards */
+        }
+        
+        @keyframes float {
+            0% { transform: translateY(110vh) rotate(0deg) scale(0.8); }
+            100% { transform: translateY(-10vh) rotate(360deg) scale(1.2); }
+        }
+
+        /* View-only mode: hide upload section immediately */
+        .view-only-mode #uploadSection {
+            display: none !important;
+        }
+        
+        /* View-only mode: Hide header and footer for clean look */
+        .view-only-mode header, 
+        .view-only-mode footer {
+            display: none !important;
+        }
+        
+        .view-only-mode main {
+            padding-top: 20px !important;
+        }
+        
+        * {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            font-size: 13px;
+            overflow-x: hidden;
+            transition: background 0.5s ease;
+        }
+
+        /* Dark mode */
+        body.dark-mode {
+            background: linear-gradient(135deg, #0a0e17 0%, #1a1f2e 100%);
+        }
+        
+        .dark-mode .chart-container,
+        .dark-mode .kpi-card,
+        .dark-mode .slicer-container,
+        .dark-mode .upload-zone,
+        .dark-mode .insight-card,
+        .dark-mode .bg-white,
+        .dark-mode .bg-gray-50,
+        .dark-mode .bg-gray-100 {
+            background-color: #1e293b !important;
+            border-color: #334155 !important;
+            color: #e2e8f0 !important;
+        }
+
+        .dark-mode .text-gray-700,
+        .dark-mode .text-gray-600,
+        .dark-mode .text-gray-800 {
+            color: #cbd5e1 !important;
+        }
+
+        .dark-mode .text-gray-500 {
+            color: #94a3b8 !important;
+        }
+
+        .dark-mode .border-gray-200,
+        .dark-mode .border-gray-300 {
+            border-color: #475569 !important;
+        }
+
+        .dark-mode .bg-gradient-to-r.from-green-50.to-emerald-50 {
+            background: linear-gradient(to right, #064e3b, #065f46) !important;
+        }
+
+        .dark-mode .float-icon {
+            opacity: 0.25;
+        }
+
+        .dark-mode .matrix-table th,
+        .dark-mode .matrix-table td {
+            border-color: #334155;
+        }
+
+        /* Mobile Responsive Styles */
+        @media (max-width: 768px) {
+            body {
+                font-size: 12px;
+            }
+            
+            header {
+                padding: 12px 16px !important;
+            }
+            
+            header h1 {
+                font-size: 16px !important;
+            }
+            
+            header p {
+                font-size: 11px !important;
+            }
+            
+            header .flex {
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+            
+            #viewOnlyBadge {
+                font-size: 10px !important;
+                padding: 4px 8px !important;
+            }
+            
+            main {
+                padding: 12px !important;
+            }
+            
+            /* Slicers - stack on mobile */
+            .slicer-container .flex {
+                flex-direction: column;
+                align-items: stretch !important;
+                gap: 8px !important;
+            }
+            
+            .slicer-container select,
+            .slicer-container input {
+                width: 100% !important;
+                font-size: 14px !important;
+                padding: 10px !important;
+            }
+            
+            .slicer-container button {
+                width: 100%;
+                justify-content: center;
+            }
+            
+            /* Premium input container */
+            .slicer-container .bg-gradient-to-r {
+                width: 100%;
+                flex-wrap: wrap;
+            }
+            
+            /* KPI Cards - 2 per row on mobile */
+            .grid.lg\:grid-cols-7 {
+                grid-template-columns: repeat(2, 1fr) !important;
+                gap: 8px !important;
+            }
+            
+            .kpi-card {
+                padding: 10px !important;
+            }
+            
+            .kpi-value {
+                font-size: 18px !important;
+            }
+            
+            .kpi-title {
+                font-size: 9px !important;
+            }
+            
+            .kpi-subtitle {
+                font-size: 9px !important;
+            }
+            
+            /* Charts - full width on mobile */
+            .grid.lg\:grid-cols-2,
+            .grid.lg\:grid-cols-3 {
+                grid-template-columns: 1fr !important;
+            }
+            
+            .lg\:col-span-2 {
+                grid-column: span 1 !important;
+            }
+            
+            .chart-container {
+                margin-bottom: 12px;
+            }
+            
+            .chart-title {
+                font-size: 11px !important;
+            }
+            
+            .chart-wrapper-sm {
+                height: 200px !important;
+            }
+            
+            .chart-wrapper-md {
+                height: 220px !important;
+            }
+            
+            .chart-wrapper-lg {
+                height: 250px !important;
+            }
+            
+            /* Matrix table scroll */
+            #matrixContainer {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+            
+            #matrixContainer table {
+                min-width: 500px;
+            }
+            
+            /* Insights panel */
+            #insightsPanel {
+                grid-template-columns: 1fr !important;
+            }
+            
+            /* Modal responsive */
+            .drill-content {
+                width: 95% !important;
+                max-height: 90vh !important;
+                padding: 16px !important;
+                margin: 10px;
+            }
+            
+            .drill-content h3 {
+                font-size: 16px !important;
+            }
+            
+            /* Filter bar */
+            #activeFiltersBar {
+                padding: 8px !important;
+            }
+            
+            #activeFilterTags {
+                flex-wrap: wrap;
+            }
+            
+            .filter-tag {
+                font-size: 10px !important;
+                padding: 4px 8px !important;
+            }
+            
+            /* Share modal */
+            #shareModal .drill-content {
+                width: 95% !important;
+                margin: 10px !important;
+                max-height: 85vh !important;
+                overflow-y: auto !important;
+            }
+            
+            #shareLink {
+                font-size: 10px !important;
+                padding: 8px !important;
+            }
+            
+            /* Hide some elements on mobile for cleaner look */
+            .visual-actions {
+                display: none !important;
+            }
+            
+            /* Footer */
+            footer {
+                padding: 12px !important;
+                font-size: 10px !important;
+            }
+        }
+        
+        /* Small mobile (< 480px) */
+        @media (max-width: 480px) {
+            header h1 {
+                font-size: 14px !important;
+            }
+            
+            .kpi-value {
+                font-size: 16px !important;
+            }
+            
+            .kpi-card .bg-indigo-100,
+            .kpi-card .bg-green-100,
+            .kpi-card .bg-cyan-100,
+            .kpi-card .bg-orange-100,
+            .kpi-card .bg-amber-100,
+            .kpi-card .bg-rose-100,
+            .kpi-card .bg-purple-100 {
+                display: none !important;
+            }
+            
+            .chart-wrapper-sm {
+                height: 180px !important;
+            }
+            
+            .chart-wrapper-md {
+                height: 200px !important;
+            }
+            
+            .chart-wrapper-lg {
+                height: 220px !important;
+            }
+        }
+        
+        /* Tablet (768px - 1024px) */
+        @media (min-width: 768px) and (max-width: 1024px) {
+            .grid.lg\:grid-cols-7 {
+                grid-template-columns: repeat(4, 1fr) !important;
+            }
+            
+            .slicer-container .flex {
+                flex-wrap: wrap;
+            }
+            
+            .slicer-container select,
+            .slicer-container input[type="text"],
+            .slicer-container input[type="number"] {
+                width: auto !important;
+            }
+        }
+        
+        .kpi-card {
+            background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+            border-left: 3px solid;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .kpi-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 30px rgba(0,0,0,0.15);
+        }
+        
+        .kpi-card.active {
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.5);
+            transform: translateY(-2px);
+        }
+        
+        .kpi-title {
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            color: #64748b;
+            white-space: nowrap;
+        }
+        
+        .kpi-value {
+            font-size: 22px;
+            font-weight: 700;
+            color: #1e293b;
+            line-height: 1.2;
+        }
+        
+        .kpi-subtitle {
+            font-size: 10px;
+            color: #94a3b8;
+            white-space: nowrap;
+        }
+        
+        .chart-container {
+            background-color: #ffffff;
+            background-image: 
+                radial-gradient(at 88% 40%, hsla(240,50%,96%,1) 0px, transparent 85%),
+                radial-gradient(at 49% 30%, hsla(280,50%,96%,1) 0px, transparent 85%),
+                radial-gradient(at 14% 26%, hsla(200,50%,96%,1) 0px, transparent 85%),
+                radial-gradient(at 0% 64%, hsla(260,50%,96%,1) 0px, transparent 85%),
+                radial-gradient(at 41% 94%, hsla(340,50%,96%,1) 0px, transparent 85%),
+                radial-gradient(at 100% 99%, hsla(180,50%,96%,1) 0px, transparent 85%);
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+            border: 1px solid rgba(255,255,255,0.8);
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+        
+        .chart-container:hover {
+            box-shadow: 0 6px 24px rgba(0,0,0,0.12);
+        }
+        
+        .chart-container.chart-filtered {
+            opacity: 0.6;
+        }
+        
+        .chart-container.chart-active {
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.4), 0 6px 24px rgba(0,0,0,0.12);
+        }
+        
+        .chart-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #374151;
+        }
+        
+        .chart-wrapper {
+            position: relative;
+            width: 100%;
+        }
+        
+        .chart-wrapper-sm {
+            height: 180px;
+        }
+        
+        .chart-wrapper-md {
+            height: 220px;
+        }
+        
+        .chart-wrapper-lg {
+            height: 250px;
+        }
+        
+        .chart-wrapper-gauge {
+            height: 140px;
+        }
+        
+        .slicer-container {
+            background: rgba(255,255,255,0.98);
+            backdrop-filter: blur(10px);
+        }
+        
+        .slicer-select {
+            font-size: 12px;
+            padding: 6px 28px 6px 10px;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .slicer-btn {
+            transition: all 0.2s ease;
+        }
+        
+        .slicer-btn:hover {
+            background: #e0e7ff;
+        }
+        
+        .slicer-btn.active {
+            background: #4f46e5;
+            color: white;
+        }
+        
+        .upload-zone {
+            border: 2px dashed #6366f1;
+            background: linear-gradient(145deg, #eef2ff 0%, #e0e7ff 100%);
+            transition: all 0.3s ease;
+        }
+        
+        .upload-zone:hover {
+            border-color: #4f46e5;
+            background: linear-gradient(145deg, #e0e7ff 0%, #c7d2fe 100%);
+            transform: scale(1.01);
+        }
+        
+        .upload-zone.dragover {
+            border-color: #4338ca;
+            background: #c7d2fe;
+            transform: scale(1.02);
+        }
+        
+        .cross-filter-indicator {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: #4f46e5;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 10px;
+            display: none;
+            z-index: 10;
+        }
+        
+        .cross-filter-indicator.show {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .filter-tag {
+            background: #e0e7ff;
+            color: #4338ca;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin: 2px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .filter-tag:hover {
+            background: #c7d2fe;
+        }
+        
+        .filter-tag .remove {
+            width: 14px;
+            height: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: rgba(0,0,0,0.1);
+            font-size: 10px;
+        }
+        
+        .filter-tag .remove:hover {
+            background: #ef4444;
+            color: white;
+        }
+        
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        
+        .tooltip-powerbi {
+            position: fixed;
+            background: #1e293b;
+            color: white;
+            padding: 10px 14px;
+            border-radius: 6px;
+            font-size: 11px;
+            z-index: 9999;
+            pointer-events: none;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+            max-width: 240px;
+            opacity: 0;
+            transition: opacity 0.15s ease;
+        }
+        
+        .tooltip-powerbi.show {
+            opacity: 1;
+        }
+        
+        .tooltip-powerbi::before {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-top: 5px solid #1e293b;
+        }
+        
+        .drill-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(3px);
+        }
+        
+        .drill-modal.show {
+            display: flex;
+        }
+        
+        .drill-content {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            max-width: 800px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            animation: slideUp 0.25s ease;
+        }
+        
+        @keyframes slideUp {
+            from { transform: translateY(15px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        .visual-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .visual-actions {
+            display: flex;
+            gap: 6px;
+        }
+        
+        .visual-action-btn {
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f1f5f9;
+            color: #64748b;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 10px;
+        }
+        
+        .visual-action-btn:hover {
+            background: #e0e7ff;
+            color: #4f46e5;
+        }
+        
+        .breadcrumb {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 12px;
+            font-size: 11px;
+            color: #64748b;
+        }
+        
+        .breadcrumb span {
+            cursor: pointer;
+        }
+        
+        .breadcrumb span:hover {
+            color: #4f46e5;
+        }
+        
+        .breadcrumb .active {
+            color: #1e293b;
+            font-weight: 600;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255,255,255,0.9);
+            z-index: 9999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .loading-overlay.show {
+            display: flex;
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #e0e7ff;
+            border-top-color: #4f46e5;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .insight-card {
+            font-size: 12px;
+        }
+        
+        .insight-card h4 {
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .insight-card p {
+            font-size: 11px;
+            line-height: 1.4;
+        }
+        
+        .matrix-table {
+            font-size: 11px;
+        }
+        
+        .matrix-table th, .matrix-table td {
+            padding: 6px 10px;
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- Floating Background -->
+    <div class="floating-background">
+        <!-- Original Set -->
+        <i class="fas fa-pills float-icon" style="top: 10%; left: 10%; animation-duration: 38s; color: #a855f7;"></i>
+        <i class="fas fa-stethoscope float-icon" style="top: 50%; left: 50%; animation-duration: 45s; color: #94a3b8;"></i>
+        <i class="fas fa-chart-bar float-icon" style="top: 20%; left: 20%; animation-duration: 42s; color: #3b82f6;"></i>
+        <i class="fas fa-chart-line float-icon" style="top: 80%; left: 80%; animation-duration: 36s; color: #10b981;"></i>
+        <i class="fas fa-hospital float-icon" style="top: 40%; left: 40%; animation-duration: 40s; color: #ef4444;"></i>
+        <i class="fas fa-dna float-icon" style="top: 60%; left: 60%; animation-duration: 37s; color: #ec4899;"></i>
+        <i class="fas fa-shield-alt float-icon" style="top: 30%; left: 30%; animation-duration: 48s; color: #6366f1;"></i>
+        <i class="fas fa-money-bill-wave float-icon" style="top: 70%; left: 70%; animation-duration: 33s; color: #10b981;"></i>
+        <i class="fas fa-exclamation-triangle float-icon" style="top: 90%; left: 90%; animation-duration: 44s; color: #f59e0b;"></i>
+        <i class="fas fa-user-nurse float-icon" style="top: 15%; left: 65%; animation-duration: 39s; color: #f43f5e;"></i>
+        <i class="fas fa-notes-medical float-icon" style="top: 55%; left: 15%; animation-duration: 41s; color: #06b6d4;"></i>
+        <i class="fas fa-file-invoice-dollar float-icon" style="top: 85%; left: 35%; animation-duration: 36s; color: #14b8a6;"></i>
+        <i class="fas fa-syringe float-icon" style="top: 25%; left: 75%; animation-duration: 43s; color: #64748b;"></i>
+        <i class="fas fa-ambulance float-icon" style="top: 75%; left: 25%; animation-duration: 34s; color: #f97316;"></i>
+        <i class="fas fa-heartbeat float-icon" style="top: 45%; left: 85%; animation-duration: 46s; color: #ef4444;"></i>
+        <i class="fas fa-briefcase-medical float-icon" style="top: 5%; left: 95%; animation-duration: 50s; color: #8b5cf6;"></i>
+        <i class="fas fa-x-ray float-icon" style="top: 95%; left: 5%; animation-duration: 32s; color: #cbd5e1;"></i>
+
+        <!-- Increased Frequency Set 1 -->
+        <i class="fas fa-pills float-icon" style="top: 5%; left: 35%; animation-duration: 31s; color: #a855f7;"></i>
+        <i class="fas fa-stethoscope float-icon" style="top: 85%; left: 55%; animation-duration: 47s; color: #94a3b8;"></i>
+        <i class="fas fa-chart-pie float-icon" style="top: 15%; left: 85%; animation-duration: 40s; color: #3b82f6;"></i>
+        <i class="fas fa-chart-line float-icon" style="top: 65%; left: 25%; animation-duration: 35s; color: #10b981;"></i>
+        <i class="fas fa-hospital float-icon" style="top: 35%; left: 95%; animation-duration: 43s; color: #ef4444;"></i>
+        <i class="fas fa-dna float-icon" style="top: 95%; left: 45%; animation-duration: 38s; color: #ec4899;"></i>
+        <i class="fas fa-shield-alt float-icon" style="top: 45%; left: 5%; animation-duration: 49s; color: #6366f1;"></i>
+        <i class="fas fa-money-bill-wave float-icon" style="top: 55%; left: 85%; animation-duration: 32s; color: #10b981;"></i>
+        <i class="fas fa-exclamation-triangle float-icon" style="top: 25%; left: 55%; animation-duration: 45s; color: #f59e0b;"></i>
+
+        <!-- Increased Frequency Set 2 -->
+        <i class="fas fa-user-md float-icon" style="top: 70%; left: 10%; animation-duration: 36s; color: #f43f5e;"></i>
+        <i class="fas fa-notes-medical float-icon" style="top: 30%; left: 60%; animation-duration: 42s; color: #06b6d4;"></i>
+        <i class="fas fa-coins float-icon" style="top: 90%; left: 75%; animation-duration: 37s; color: #eab308;"></i>
+        <i class="fas fa-syringe float-icon" style="top: 60%; left: 90%; animation-duration: 44s; color: #64748b;"></i>
+        <i class="fas fa-ambulance float-icon" style="top: 10%; left: 50%; animation-duration: 33s; color: #f97316;"></i>
+        <i class="fas fa-heartbeat float-icon" style="top: 80%; left: 30%; animation-duration: 47s; color: #ef4444;"></i>
+        <i class="fas fa-briefcase-medical float-icon" style="top: 40%; left: 15%; animation-duration: 51s; color: #8b5cf6;"></i>
+        <i class="fas fa-file-medical float-icon" style="top: 50%; left: 75%; animation-duration: 31s; color: #cbd5e1;"></i>
+        
+        <!-- Central Cluster -->
+        <i class="fas fa-pills float-icon" style="top: 45%; left: 45%; animation-duration: 42s; color: #a855f7;"></i>
+        <i class="fas fa-hospital-user float-icon" style="top: 55%; left: 55%; animation-duration: 39s; color: #14b8a6;"></i>
+        <i class="fas fa-chart-area float-icon" style="top: 35%; left: 65%; animation-duration: 45s; color: #3b82f6;"></i>
+        <i class="fas fa-hand-holding-medical float-icon" style="top: 65%; left: 35%; animation-duration: 38s; color: #ec4899;"></i>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="spinner"></div>
+        <p class="text-gray-600 font-medium">Processing your data...</p>
+    </div>
+
+    <!-- Power BI Tooltip -->
+    <div id="powerbiTooltip" class="tooltip-powerbi"></div>
+
+    <!-- Share Modal -->
+    <div id="shareModal" class="drill-modal" onclick="closeShareModal(event)">
+        <div class="drill-content" onclick="event.stopPropagation()" style="max-width: 500px;">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-gray-800"><i class="fas fa-share-alt text-green-600 mr-2"></i>Share Dashboard</h3>
+                <button onclick="closeShareModal()" class="text-gray-400 hover:text-gray-600 text-2xl">×</button>
+            </div>
+            <p class="text-gray-600 mb-4">Generate a view-only link to share this dashboard. Recipients can use all filters, slicers, and enter premium values, but cannot upload new data.</p>
+            
+            <div class="bg-gray-50 rounded-lg p-4 mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Shareable Link</label>
+                <div class="flex gap-2">
+                    <input type="text" id="shareLink" readonly class="flex-1 border border-gray-300 rounded-lg px-3 py-2 bg-white text-sm">
+                    <button onclick="copyShareLink()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition flex items-center gap-2">
+                        <i class="fas fa-copy"></i> Copy
+                    </button>
+                </div>
+                <p id="copyStatus" class="text-sm text-green-600 mt-2 hidden"><i class="fas fa-check"></i> Link copied to clipboard!</p>
+            </div>
+            
+            <div id="shareInstructions" class="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                <!-- Instructions will be dynamically updated -->
+            </div>
+            
+            <div class="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <div class="flex items-start gap-3">
+                    <i class="fas fa-info-circle text-amber-600 mt-1"></i>
+                    <div>
+                        <p class="text-sm text-amber-800 font-medium">View-Only Mode Features:</p>
+                        <ul class="text-sm text-amber-700 mt-2 space-y-1">
+                            <li>✓ All filters and slicers work</li>
+                            <li>✓ Premium input is functional</li>
+                            <li>✓ Cross-filtering between charts</li>
+                            <li>✓ Drill-through on KPIs</li>
+                            <li>✓ Export reports</li>
+                            <li>✗ Cannot upload new data</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-4 flex gap-3">
+                <button onclick="generateShareLink()" class="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition flex items-center justify-center gap-2">
+                    <i class="fas fa-link"></i> Generate Link
+                </button>
+                <button onclick="closeShareModal()" class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Drill-through Modal -->
+    <div id="drillModal" class="drill-modal" onclick="closeDrillModal(event)">
+        <div class="drill-content" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="drillTitle" class="text-xl font-bold text-gray-800"></h3>
+                <button onclick="closeDrillModal()" class="text-gray-400 hover:text-gray-600 text-2xl">×</button>
+            </div>
+            <div id="drillBreadcrumb" class="breadcrumb"></div>
+            <div id="drillBody"></div>
+        </div>
+    </div>
+
+    <!-- Version Banner (hidden in view-only mode) -->
+    <div id="versionBanner" class="bg-gradient-to-r from-green-600 to-emerald-600 text-white text-center py-2 text-sm font-medium">
+        <i class="fas fa-check-circle mr-2"></i>
+        Dashboard v2.7 | Last Updated: <span id="versionDate"></span>
+        <script>document.getElementById('versionDate').textContent = new Date().toLocaleString('en-US', {month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'});</script>
+    </div>
+
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-indigo-900 via-purple-900 to-indigo-900 text-white py-4 px-6 shadow-xl">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-4">
+                <i class="fas fa-chart-line text-3xl text-yellow-400"></i>
+                <div>
+                    <h1 class="text-2xl font-bold">Claims Analytics Dashboard</h1>
+                    <p class="text-indigo-200 text-sm">Premium vs Claims Performance Tracker</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-4">
+                <span id="lastUpdated" class="text-sm text-indigo-200"></span>
+                <span id="viewOnlyBadge" class="hidden bg-amber-500 text-white px-3 py-1 rounded-full text-sm font-medium">
+                    <i class="fas fa-eye mr-1"></i> View Only
+                </span>
+                <button id="shareBtn" onclick="openShareModal()" class="hidden bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg flex items-center gap-2 transition">
+                    <i class="fas fa-share-alt"></i> Share
+                </button>
+                <button onclick="exportReport()" class="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg flex items-center gap-2 transition">
+                    <i class="fas fa-download"></i> Export
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto p-6">
+        <!-- Upload Section -->
+        <div id="uploadSection" class="mb-8">
+            <div id="uploadZone" class="upload-zone rounded-xl p-12 text-center cursor-pointer" ondragover="event.preventDefault(); this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="event.preventDefault(); this.classList.remove('dragover'); if(event.dataTransfer.files[0]) processFile(event.dataTransfer.files[0])">
+                <i class="fas fa-cloud-upload-alt text-6xl text-indigo-500 mb-4"></i>
+                <h3 class="text-xl font-semibold text-gray-700 mb-2">Upload Your Claims Data</h3>
+                <p class="text-gray-500 mb-4">Drag & drop your Excel file here, or click to browse</p>
+                <p class="text-sm text-gray-400">Supported: .xlsx, .xls, .csv</p>
+                <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" class="hidden">
+            </div>
+            
+            <!-- Premium Input Section -->
+            <div class="mt-6 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200 max-w-md mx-auto">
+                <div class="flex items-center gap-3 justify-center">
+                    <div class="bg-green-100 p-3 rounded-full">
+                        <i class="fas fa-rupee-sign text-green-600 text-xl"></i>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-green-800">Enter Premium Amount</label>
+                        <p class="text-xs text-green-600">Required for Premium Ratio calculation</p>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <input type="number" id="premiumInput" placeholder="e.g., 5000000" 
+                           class="w-full border-2 border-green-300 rounded-lg px-4 py-3 text-center text-lg font-semibold focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                           onchange="updatePremiumRatio()" onkeyup="updatePremiumRatio()">
+                    <p class="text-xs text-gray-500 text-center mt-2">This will be used to calculate your Premium Ratio in the dashboard</p>
+                </div>
+            </div>
+            
+            <div class="text-center mt-4">
+                <button onclick="loadSampleData()" class="text-indigo-400 hover:text-indigo-300 underline">
+                    Or load sample data to explore the dashboard
+                </button>
+            </div>
+        </div>
+
+        <!-- Dashboard Content -->
+        <div id="dashboardContent" class="hidden">
+            <!-- Active Filters Display -->
+            <div id="activeFiltersBar" class="hidden bg-white rounded-xl p-3 mb-4 shadow-lg">
+                <div class="flex items-center gap-3 flex-wrap">
+                    <span class="text-sm font-medium text-gray-600"><i class="fas fa-filter mr-2"></i>Active Filters:</span>
+                    <div id="activeFilterTags" class="flex flex-wrap gap-2"></div>
+                    <button onclick="resetFilters()" class="ml-auto text-sm text-indigo-600 hover:text-indigo-800 font-medium">
+                        Clear All
+                    </button>
+                </div>
+            </div>
+
+            <!-- Slicers Row -->
+            <div class="slicer-container rounded-xl p-4 mb-6 shadow-lg">
+                <div class="flex flex-wrap gap-4 items-center">
+                    <div class="flex items-center gap-2">
+                        <i class="fas fa-sliders-h text-indigo-600"></i>
+                        <span class="font-semibold text-gray-700">Slicers:</span>
+                    </div>
+                    
+                    <div class="relative">
+                        <select id="diseaseFilter" class="border border-gray-300 rounded-lg px-4 py-2 pr-8 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none bg-white cursor-pointer">
+                            <option value="all">All Disease Types</option>
+                        </select>
+                        <i class="fas fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs"></i>
+                    </div>
+                    
+                    <div class="relative">
+                        <select id="groupFilter" class="border border-gray-300 rounded-lg px-4 py-2 pr-8 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none bg-white cursor-pointer">
+                            <option value="all">All Groups (Relation/City)</option>
+                        </select>
+                        <i class="fas fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs"></i>
+                    </div>
+                    
+                    <div class="relative">
+                        <select id="claimTypeFilter" class="border border-gray-300 rounded-lg px-4 py-2 pr-8 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none bg-white cursor-pointer">
+                            <option value="all">All Claims (Cashless/Reimb)</option>
+                        </select>
+                        <i class="fas fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs"></i>
+                    </div>
+                    
+                    <div class="relative">
+                        <select id="hospitalFilter" class="border border-gray-300 rounded-lg px-4 py-2 pr-8 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none bg-white cursor-pointer">
+                            <option value="all">All Hospitals</option>
+                        </select>
+                        <i class="fas fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs"></i>
+                    </div>
+                    
+                    <div class="relative">
+                        <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                        <input type="text" id="claimIdSearch" placeholder="Search by Claim ID..." class="border border-gray-300 rounded-lg pl-9 pr-4 py-2 focus:ring-2 focus:ring-indigo-500 w-48">
+                    </div>
+                    
+                    
+                    <button onclick="resetFilters()" class="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-lg transition flex items-center gap-2">
+                        <i class="fas fa-undo text-sm"></i> Reset
+                    </button>
+                    
+                    <button onclick="showUpload()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition ml-auto flex items-center gap-2">
+                        <i class="fas fa-upload"></i> New Data
+                    </button>
+                </div>
+            </div>
+
+            <!-- KPI Cards Row - 6 KPIs -->
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
+                <!-- KPI 1: Total Claims Paid -->
+                <div class="kpi-card rounded-lg p-3 border-l-cyan-600" onclick="drillKPI('totalClaims')">
+                    <div class="flex items-start">
+                        <div class="flex-1 min-w-0 pr-2">
+                            <p class="kpi-title truncate">TOTAL CLAIMS PAID</p>
+                            <p id="kpiTotalClaims" class="kpi-value mt-1">₹0</p>
+                            <p id="kpiClaimsCount" class="kpi-subtitle mt-1">0 claims</p>
+                        </div>
+                        <div class="bg-cyan-100 p-1.5 rounded-lg shrink-0">
+                            <i class="fas fa-money-bill-wave text-cyan-600 text-xs"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- KPI 2: Outstanding Amount -->
+                <div class="kpi-card rounded-lg p-3 border-l-orange-500" onclick="drillKPI('outstanding')">
+                    <div class="flex items-start">
+                        <div class="flex-1 min-w-0 pr-2">
+                            <p class="kpi-title truncate">OUTSTANDING</p>
+                            <p id="kpiOutstanding" class="kpi-value mt-1">₹0</p>
+                            <p id="kpiOutstandingCount" class="kpi-subtitle mt-1">Pending</p>
+                        </div>
+                        <div class="bg-orange-100 p-1.5 rounded-lg shrink-0">
+                            <i class="fas fa-clock text-orange-600 text-xs"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- KPI 3: Claim Ratio (formerly Premium Ratio) -->
+                <div class="kpi-card rounded-lg p-3 border-l-green-600" id="premiumKpiCard">
+                    <div class="flex items-start">
+                        <div class="flex-1 min-w-0 pr-2">
+                            <p class="kpi-title truncate">CLAIM RATIO</p>
+                            <p id="kpiPremiumRatio" class="kpi-value mt-1">--%</p>
+                            <p id="kpiPremiumTrend" class="kpi-subtitle mt-1"><span class="text-gray-400">Enter premium</span></p>
+                        </div>
+                        <div class="bg-green-100 p-1.5 rounded-lg shrink-0">
+                            <i class="fas fa-rupee-sign text-green-600 text-xs"></i>
+                        </div>
+                    </div>
+                    <div class="mt-2 bg-gray-200 rounded-full h-1.5">
+                        <div id="premiumRatioBar" class="bg-green-600 h-1.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                    <p id="kpiPremiumAmount" class="kpi-subtitle mt-1 truncate">Premium: Not set</p>
+                </div>
+
+                <!-- KPI 4: Payout Ratio (Paid/Claimed) -->
+                <div class="kpi-card rounded-lg p-3 border-l-indigo-600" onclick="drillKPI('payoutRatio')">
+                    <div class="flex items-start">
+                        <div class="flex-1 min-w-0 pr-2">
+                            <p class="kpi-title truncate">PAYOUT RATIO</p>
+                            <p id="kpiPayoutRatio" class="kpi-value mt-1">--%</p>
+                            <p id="kpiPayoutTrend" class="kpi-subtitle mt-1"></p>
+                        </div>
+                        <div class="bg-indigo-100 p-1.5 rounded-lg shrink-0">
+                            <i class="fas fa-percentage text-indigo-600 text-xs"></i>
+                        </div>
+                    </div>
+                    <div class="mt-2 bg-gray-200 rounded-full h-1.5">
+                        <div id="payoutRatioBar" class="bg-indigo-600 h-1.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <!-- KPI 5: Average Claim Value -->
+                <div class="kpi-card rounded-lg p-3 border-l-amber-600" onclick="drillKPI('avgClaim')">
+                    <div class="flex items-start">
+                        <div class="flex-1 min-w-0 pr-2">
+                            <p class="kpi-title truncate">AVG CLAIM</p>
+                            <p id="kpiAvgClaim" class="kpi-value mt-1">₹0</p>
+                            <p id="kpiMedianClaim" class="kpi-subtitle mt-1">Median: ₹0</p>
+                        </div>
+                        <div class="bg-amber-100 p-1.5 rounded-lg shrink-0">
+                            <i class="fas fa-calculator text-amber-600 text-xs"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- KPI 6: High Value Claims -->
+                <div class="kpi-card rounded-lg p-3 border-l-purple-600" onclick="drillKPI('highValue')">
+                    <div class="flex items-start">
+                        <div class="flex-1 min-w-0 pr-2">
+                            <p class="kpi-title truncate">HIGH VALUE</p>
+                            <p id="kpiHighValue" class="kpi-value mt-1">0</p>
+                            <p id="kpiHighValuePct" class="kpi-subtitle mt-1">0% of total</p>
+                        </div>
+                        <div class="bg-purple-100 p-1.5 rounded-lg shrink-0">
+                            <i class="fas fa-exclamation-triangle text-purple-600 text-xs"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Row 1: Claim Status, Type vs Status, Amount Distribution -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5">
+                <!-- Claim Status Distribution -->
+                <div class="chart-container p-4 relative" id="claimTypeChartContainer">
+                    <span class="cross-filter-indicator" id="claimTypeFilterIndicator">
+                        <i class="fas fa-filter"></i> Filtered
+                        <button onclick="clearChartFilter('claimType')" class="ml-1 hover:text-red-300">×</button>
+                    </span>
+                    <div class="visual-header">
+                        <h3 class="chart-title"><i class="fas fa-chart-pie text-purple-500 mr-2"></i>Claim Status Split</h3>
+                    </div>
+                    <div class="chart-wrapper chart-wrapper-sm">
+                        <canvas id="claimTypeChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Claim Type vs Status Table -->
+                <div class="chart-container p-4 relative" id="claimTypeStatusContainer">
+                    <div class="visual-header">
+                        <h3 class="chart-title"><i class="fas fa-table text-blue-500 mr-2"></i>Claim Type vs Status</h3>
+                    </div>
+                    <div class="chart-wrapper chart-wrapper-sm overflow-auto">
+                        <div id="claimTypeStatusTable"></div>
+                    </div>
+                </div>
+
+                <!-- Claim Amount Distribution -->
+                <div class="chart-container p-4 relative" id="distributionChartContainer">
+                    <div class="visual-header">
+                        <h3 class="chart-title"><i class="fas fa-chart-bar text-green-500 mr-2"></i>Amount Distribution</h3>
+                    </div>
+                    <div class="chart-wrapper chart-wrapper-sm">
+                        <canvas id="distributionChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Smart Insights Panel -->
+            <div class="chart-container p-4 mb-5">
+                <div class="visual-header">
+                    <h3 class="chart-title"><i class="fas fa-lightbulb text-yellow-500 mr-2"></i>Smart Insights</h3>
+                </div>
+                <div id="insightsPanel" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-3"></div>
+            </div>
+
+            <!-- Charts Row 2: Disease Chart & Gauge -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5">
+                <!-- Disease Chart (Large) -->
+                <div class="chart-container p-4 lg:col-span-2 relative" id="diseaseChartContainer">
+                    <span class="cross-filter-indicator" id="diseaseFilterIndicator">
+                        <i class="fas fa-filter"></i> Filtered
+                        <button onclick="clearChartFilter('disease')" class="ml-1 hover:text-red-300">×</button>
+                    </span>
+                    <div class="visual-header">
+                        <h3 class="chart-title"><i class="fas fa-disease text-rose-500 mr-2"></i>Claims by Disease (ICD)</h3>
+                    </div>
+                    <div class="chart-wrapper chart-wrapper-lg">
+                        <canvas id="diseaseChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Claim Ratio Gauge -->
+                <div class="chart-container p-4 relative" id="gaugeChartContainer">
+                    <div class="visual-header">
+                        <h3 class="chart-title"><i class="fas fa-tachometer-alt text-amber-500 mr-2"></i>Claim Ratio</h3>
+                    </div>
+                    <div class="gauge-container flex flex-col items-center">
+                        <canvas id="gaugeChart" height="160"></canvas>
+                        <div id="gaugeMessage" class="text-center mt-2 p-2 rounded-lg bg-gray-50">
+                            <p class="text-xs text-gray-500">Enter premium to see gauge</p>
+                        </div>
+                        <div class="mt-3 grid grid-cols-3 gap-2 text-center w-full">
+                            <div class="bg-green-50 rounded p-1.5">
+                                <p class="text-[10px] text-gray-500">Healthy</p>
+                                <p class="font-semibold text-green-600 text-xs">≤70%</p>
+                            </div>
+                            <div class="bg-amber-50 rounded p-1.5">
+                                <p class="text-[10px] text-gray-500">Caution</p>
+                                <p class="font-semibold text-amber-600 text-xs">70-85%</p>
+                            </div>
+                            <div class="bg-red-50 rounded p-1.5">
+                                <p class="text-[10px] text-gray-500">Critical</p>
+                                <p class="font-semibold text-red-600 text-xs">>85%</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Row 3: Group (Relation/City) & Hospital -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5">
+                <!-- Group Distribution (Relation or City) -->
+                <div class="chart-container p-4 relative" id="groupChartContainer">
+                    <span class="cross-filter-indicator" id="groupFilterIndicator">
+                        <i class="fas fa-filter"></i> Filtered
+                        <button onclick="clearChartFilter('group')" class="ml-1 hover:text-red-300">×</button>
+                    </span>
+                    <div class="visual-header">
+                        <h3 class="chart-title" id="groupChartTitle"><i class="fas fa-users text-teal-500 mr-2"></i>Claims by Relation</h3>
+                    </div>
+                    <div class="chart-wrapper chart-wrapper-md">
+                        <canvas id="groupChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Hospital Distribution -->
+                <div class="chart-container p-4 relative" id="hospitalChartContainer">
+                    <span class="cross-filter-indicator" id="hospitalFilterIndicator">
+                        <i class="fas fa-filter"></i> Filtered
+                        <button onclick="clearChartFilter('hospital')" class="ml-1 hover:text-red-300">×</button>
+                    </span>
+                    <div class="visual-header">
+                        <h3 class="chart-title"><i class="fas fa-hospital text-blue-500 mr-2"></i>Top Hospitals (HSP)</h3>
+                    </div>
+                    <div class="chart-wrapper chart-wrapper-md">
+                        <canvas id="hospitalChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Payout Matrix -->
+            <div class="chart-container p-4 mb-5">
+                <div class="visual-header">
+                    <h3 class="chart-title"><i class="fas fa-th text-indigo-500 mr-2"></i>Claim Volume Share (Disease × Group)</h3>
+                </div>
+                <div id="matrixContainer" class="overflow-x-auto mt-3"></div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-900 text-gray-400 py-4 text-center text-sm mt-8">
+        <p>Claims Analytics Dashboard • Interactive Power BI Style • Cross-filtering enabled</p>
+    </footer>
+
+    <script>
+        // Global state
+        let rawData = [];
+        let filteredData = [];
+        let charts = {};
+        let columnMapping = {};
+        let crossFilters = {
+            disease: null,
+            group: null,
+            hospital: null,
+            claimType: null
+        };
+        let availableColumns = {};
+        let groupField = null; // 'relation' or 'city'
+
+        // Chart.js defaults
+        Chart.defaults.font.family = "'Segoe UI', sans-serif";
+        Chart.defaults.plugins.legend.labels.usePointStyle = true;
+
+        // File Upload Handlers
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+
+        uploadZone.addEventListener('click', () => fileInput.click());
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+        uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file) processFile(file);
+        });
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) processFile(file);
+        });
+
+        function showLoading(show) {
+            document.getElementById('loadingOverlay').classList.toggle('show', show);
+        }
+
+        function processFile(file) {
+            showLoading(true);
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[sheetName];
+                    rawData = XLSX.utils.sheet_to_json(worksheet);
+                    
+                    if (rawData.length > 0) {
+                        autoMapColumns(Object.keys(rawData[0]));
+                        detectGroupField();
+                        initializeDashboard();
+                    }
+                } catch (error) {
+                    alert('Error processing file: ' + error.message);
+                }
+                showLoading(false);
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function autoMapColumns(columns) {
+            availableColumns = columns.reduce((acc, col) => {
+                acc[col.toLowerCase().trim()] = col;
+                return acc;
+            }, {});
+
+            columnMapping = {
+                claimId: findColumn(columns, ['claimid', 'claim id', 'claim_id', 'claim no', 'claim number', 'claimno', 'id']),
+                employeeCode: findColumn(columns, ['employee code', 'emp code', 'empcode', 'emp_code', 'employee_code', 'code', 'id', 'member id']),
+                employeeName: findColumn(columns, ['employee name', 'name', 'member name', 'emp name', 'empname']),
+                claimType: findColumn(columns, ['claims', 'claim type', 'claimtype', 'type', 'claim_type', 'cashless/reimb']),
+                category: findColumn(columns, ['category', 'status', 'claim status', 'process status', 'claim category']),
+                disease: findColumn(columns, ['icd', 'disease', 'diagnosis', 'ailment', 'illness', 'condition', 'disease type', 'diseasetype', 'icd code', 'icd description']),
+                hospital: findColumn(columns, ['hsp', 'hospital', 'provider', 'facility', 'hospital name', 'hospitalname', 'hsp name']),
+                relation: findColumn(columns, ['relation', 'rltn', 'relationship', 'dependent', 'beneficiary', 'rltn']),
+                city: findColumn(columns, ['city', 'location', 'town', 'area', 'branch', 'zone']),
+                claimedAmount: findColumn(columns, ['claimed', 'claim amount', 'claimed amount', 'billed', 'total claimed', 'total_amount', 'total amount']),
+                paidAmount: findColumn(columns, ['paid', 'paid amount', 'settled', 'approved', 'reimbursed', 'amount paid', 'claim paid']),
+                sumInsured: findColumn(columns, ['si', 'sum insured', 'suminsured', 'sum_insured', 'coverage', 'insured', 'limit', 'si amount'])
+            };
+            console.log('Column Mapping:', columnMapping);
+        }
+
+        function detectGroupField() {
+            if (columnMapping.city) {
+                groupField = 'city';
+                document.getElementById('groupChartTitle').innerHTML = '<i class="fas fa-city text-teal-500 mr-2"></i>Claims by City';
+            } else if (columnMapping.relation) {
+                groupField = 'relation';
+                document.getElementById('groupChartTitle').innerHTML = '<i class="fas fa-users text-teal-500 mr-2"></i>Claims by Relation';
+            } else {
+                groupField = null;
+            }
+        }
+        
+        // Helper function to check if a claim is "In Process"
+        function isInProcess(row) {
+            const category = String(getValue(row, 'category') || '').toLowerCase().replace(/[\s\-_]/g, '');
+            const claimType = String(getValue(row, 'claimType') || '').toLowerCase().replace(/[\s\-_]/g, '');
+            
+            const inProcessPatterns = ['inprocess', 'pending', 'underprocess', 'processing', 'inprogress', 'awaiting', 'open', 'submitted', 'review'];
+            
+            return inProcessPatterns.some(pattern => 
+                category.includes(pattern) || claimType.includes(pattern)
+            );
+        }
+        
+        // Helper function to match claim status for cross-filtering
+        function matchesClaimStatus(row, status) {
+            if (!status) return true;
+            
+            const category = String(getValue(row, 'category') || '').toLowerCase().replace(/[\s\-_]/g, '');
+            
+            if (status === 'Settled') {
+                return category.includes('settled') || category.includes('approved') || category.includes('paid') || category.includes('closed');
+            } else if (status === 'In Process') {
+                return category.includes('inprocess') || category.includes('pending') || category.includes('processing') || category.includes('open') || category.includes('submitted') || category.includes('review') || category.includes('progress');
+            } else if (status === 'Denied') {
+                return category.includes('denied') || category.includes('rejected') || category.includes('declined');
+            }
+            
+            return false;
+        }
+
+        function findColumn(columns, keywords) {
+            const lowerColumns = columns.map(c => c.toLowerCase().trim());
+            for (let keyword of keywords) {
+                const exactMatch = columns.find((c, i) => lowerColumns[i] === keyword.toLowerCase());
+                if (exactMatch) return exactMatch;
+            }
+            for (let keyword of keywords) {
+                const partialMatch = columns.find((c, i) => lowerColumns[i].includes(keyword.toLowerCase()));
+                if (partialMatch) return partialMatch;
+            }
+            return null;
+        }
+
+        function getValue(row, field) {
+            if (columnMapping[field]) {
+                return row[columnMapping[field]];
+            }
+            return '';
+        }
+
+        function getNumericValue(row, field) {
+            let val = getValue(row, field);
+            if (typeof val === 'string') {
+                val = parseFloat(val.replace(/[₹,\s]/g, '')) || 0;
+            }
+            return Number(val) || 0;
+        }
+
+        function showUpload() {
+            document.getElementById('uploadSection').classList.remove('hidden');
+            document.getElementById('dashboardContent').classList.add('hidden');
+        }
+
+        function initializeDashboard() {
+            document.getElementById('uploadSection').classList.add('hidden');
+            document.getElementById('dashboardContent').classList.remove('hidden');
+            document.getElementById('lastUpdated').textContent = `Last updated: ${new Date().toLocaleString()}`;
+            
+            populateFilters();
+            filteredData = [...rawData];
+            updateDashboard();
+            
+            // Show share button if not in view-only mode
+            if (!window.isViewOnlyFromURL) {
+                document.getElementById('shareBtn').classList.remove('hidden');
+            }
+        }
+
+        function populateFilters() {
+            const diseases = [...new Set(rawData.map(r => getValue(r, 'disease')).filter(Boolean))].sort();
+            const groups = groupField ? [...new Set(rawData.map(r => getValue(r, groupField)).filter(Boolean))].sort() : [];
+            const claimTypes = [...new Set(rawData.map(r => getValue(r, 'claimType')).filter(Boolean))].sort();
+            const hospitals = [...new Set(rawData.map(r => getValue(r, 'hospital')).filter(Boolean))].sort();
+
+            populateSelect('diseaseFilter', diseases, 'All Disease Types');
+            populateSelect('groupFilter', groups, groupField ? `All ${groupField === 'city' ? 'Cities' : 'Relations'}` : 'No Group Field');
+            populateSelect('claimTypeFilter', claimTypes, 'All Claims (Cashless/Reimb)');
+            populateSelect('hospitalFilter', hospitals, 'All Hospitals');
+
+            // Disable group filter if no field
+            if (!groupField) {
+                document.getElementById('groupFilter').disabled = true;
+            }
+
+            ['diseaseFilter', 'groupFilter', 'claimTypeFilter', 'hospitalFilter'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.addEventListener('change', applyFilters);
+            });
+            document.getElementById('claimIdSearch').addEventListener('input', debounce(applyFilters, 300));
+        }
+
+        function populateSelect(id, options, defaultText) {
+            const select = document.getElementById(id);
+            select.innerHTML = `<option value="all">${defaultText}</option>`;
+            options.forEach(opt => {
+                if (opt) select.innerHTML += `<option value="${opt}">${opt}</option>`;
+            });
+        }
+
+        function debounce(func, wait) {
+            let timeout;
+            return function(...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), wait);
+            };
+        }
+
+        function applyFilters() {
+            const diseaseFilter = document.getElementById('diseaseFilter').value;
+            const groupFilter = document.getElementById('groupFilter').value;
+            const claimTypeFilter = document.getElementById('claimTypeFilter').value;
+            const hospitalFilter = document.getElementById('hospitalFilter').value;
+            const claimIdTerm = document.getElementById('claimIdSearch').value.toLowerCase();
+
+            filteredData = rawData.filter(row => {
+                const matchDisease = diseaseFilter === 'all' || getValue(row, 'disease') === diseaseFilter;
+                const matchGroup = groupFilter === 'all' || !groupField || getValue(row, groupField) === groupFilter;
+                const matchClaimType = claimTypeFilter === 'all' || getValue(row, 'claimType') === claimTypeFilter || matchesClaimStatus(row, claimTypeFilter);
+                const matchHospital = hospitalFilter === 'all' || getValue(row, 'hospital') === hospitalFilter;
+                const matchClaimId = !claimIdTerm || 
+                    String(getValue(row, 'claimId') || '').toLowerCase().includes(claimIdTerm);
+                
+                // Apply cross-filters
+                const matchCrossDisease = !crossFilters.disease || getValue(row, 'disease') === crossFilters.disease;
+                const matchCrossGroup = !crossFilters.group || !groupField || getValue(row, groupField) === crossFilters.group;
+                const matchCrossHospital = !crossFilters.hospital || getValue(row, 'hospital') === crossFilters.hospital;
+                const matchCrossClaimType = !crossFilters.claimType || getValue(row, 'claimType') === crossFilters.claimType || matchesClaimStatus(row, crossFilters.claimType);
+                
+                return matchDisease && matchGroup && matchClaimType && matchHospital && matchClaimId &&
+                       matchCrossDisease && matchCrossGroup && matchCrossHospital && matchCrossClaimType;
+            });
+
+            updateActiveFiltersBar();
+            updateDashboard();
+        }
+
+        function updateActiveFiltersBar() {
+            const tags = [];
+            const diseaseFilter = document.getElementById('diseaseFilter').value;
+            const groupFilter = document.getElementById('groupFilter').value;
+            const claimTypeFilter = document.getElementById('claimTypeFilter').value;
+            const hospitalFilter = document.getElementById('hospitalFilter').value;
+            const claimIdTerm = document.getElementById('claimIdSearch').value;
+
+            if (diseaseFilter !== 'all') tags.push({ type: 'disease', value: diseaseFilter });
+            if (groupFilter !== 'all' && groupField) tags.push({ type: 'group', value: groupFilter });
+            if (claimTypeFilter !== 'all') tags.push({ type: 'claimType', value: claimTypeFilter });
+            if (hospitalFilter !== 'all') tags.push({ type: 'hospital', value: hospitalFilter });
+            if (claimIdTerm) tags.push({ type: 'claimId', value: `ID: ${claimIdTerm}` });
+            
+            Object.entries(crossFilters).forEach(([key, value]) => {
+                if (value && (key !== 'group' || groupField)) tags.push({ type: `cross-${key}`, value: value, isCross: true });
+            });
+
+            const bar = document.getElementById('activeFiltersBar');
+            const container = document.getElementById('activeFilterTags');
+            
+            if (tags.length > 0) {
+                bar.classList.remove('hidden');
+                container.innerHTML = tags.map(tag => `
+                    <span class="filter-tag ${tag.isCross ? 'bg-indigo-100 text-indigo-700' : ''}">
+                        ${tag.isCross ? '<i class="fas fa-link text-xs"></i>' : ''}
+                        ${tag.value}
+                        <span class="remove" onclick="removeFilter('${tag.type}')">×</span>
+                    </span>
+                `).join('');
+            } else {
+                bar.classList.add('hidden');
+            }
+
+            // Update filter indicators
+            ['disease', 'group', 'hospital', 'claimType'].forEach(type => {
+                const indicator = document.getElementById(`${type}FilterIndicator`);
+                if (indicator) {
+                    indicator.classList.toggle('show', crossFilters[type] !== null);
+                }
+            });
+        }
+
+        function removeFilter(type) {
+            if (type.startsWith('cross-')) {
+                const crossType = type.replace('cross-', '');
+                crossFilters[crossType] = null;
+            } else if (type === 'disease') {
+                document.getElementById('diseaseFilter').value = 'all';
+            } else if (type === 'group') {
+                document.getElementById('groupFilter').value = 'all';
+            } else if (type === 'claimType') {
+                document.getElementById('claimTypeFilter').value = 'all';
+            } else if (type === 'hospital') {
+                document.getElementById('hospitalFilter').value = 'all';
+            } else if (type === 'claimId') {
+                document.getElementById('claimIdSearch').value = '';
+            }
+            applyFilters();
+        }
+
+        function resetFilters() {
+            document.getElementById('diseaseFilter').value = 'all';
+            document.getElementById('groupFilter').value = 'all';
+            document.getElementById('claimTypeFilter').value = 'all';
+            document.getElementById('hospitalFilter').value = 'all';
+            document.getElementById('claimIdSearch').value = '';
+            crossFilters = { disease: null, group: null, hospital: null, claimType: null };
+            filteredData = [...rawData];
+            updateActiveFiltersBar();
+            updateDashboard();
+        }
+
+        function clearChartFilter(type) {
+            crossFilters[type] = null;
+            applyFilters();
+        }
+
+        function applyCrossFilter(type, value) {
+            if (crossFilters[type] === value) {
+                crossFilters[type] = null; // Toggle off
+            } else {
+                crossFilters[type] = value;
+            }
+            applyFilters();
+        }
+
+        function updateDashboard() {
+            updateKPIs();
+            updateCharts();
+            updateMatrix();
+            generateInsights();
+            updatePremiumRatio();
+        }
+
+        function updateKPIs() {
+            const totalClaimed = filteredData.reduce((sum, r) => sum + getNumericValue(r, 'claimedAmount'), 0);
+            const totalPaid = filteredData.reduce((sum, r) => sum + getNumericValue(r, 'paidAmount'), 0);
+            
+            const payoutRatio = totalClaimed > 0 ? (totalPaid / totalClaimed * 100) : 0;
+            
+            const paidAmounts = filteredData.map(r => getNumericValue(r, 'paidAmount')).filter(v => v > 0).sort((a, b) => a - b);
+            const avgClaim = paidAmounts.length > 0 ? paidAmounts.reduce((a, b) => a + b, 0) / paidAmounts.length : 0;
+            const medianClaim = paidAmounts.length > 0 ? paidAmounts[Math.floor(paidAmounts.length / 2)] : 0;
+            
+            const highValueThreshold = 100000;
+            const highValueClaims = filteredData.filter(r => getNumericValue(r, 'paidAmount') > highValueThreshold).length;
+
+            // In-Process Claims calculation
+            const inProcessClaims = filteredData.filter(r => isInProcess(r));
+            const inProcessCount = inProcessClaims.length;
+            
+            // Outstanding Amount calculation (Claimed - Paid for in-process claims)
+            const outstandingAmount = inProcessClaims.reduce((sum, r) => {
+                const claimed = getNumericValue(r, 'claimedAmount');
+                const paid = getNumericValue(r, 'paidAmount');
+                return sum + Math.max(claimed - paid, 0);
+            }, 0);
+
+            // Animate KPI updates
+            animateValue('kpiPayoutRatio', payoutRatio, '%', 1);
+            const payoutBar = document.getElementById('payoutRatioBar');
+            if(payoutBar) {
+                payoutBar.style.width = `${Math.min(payoutRatio, 100)}%`;
+                payoutBar.className = `h-2 rounded-full transition-all duration-500 ${
+                    payoutRatio >= 85 ? 'bg-green-500' : payoutRatio >= 70 ? 'bg-green-500' : 'bg-amber-500'
+                }`;
+            }
+            
+            const kpiPayoutTrend = document.getElementById('kpiPayoutTrend');
+            if(kpiPayoutTrend) {
+                kpiPayoutTrend.innerHTML = payoutRatio >= 85 
+                    ? '<span class="text-green-600"><i class="fas fa-check-circle"></i> Excellent</span>'
+                    : payoutRatio >= 70 
+                        ? '<span class="text-green-600"><i class="fas fa-check-circle"></i> Good</span>'
+                        : '<span class="text-amber-600"><i class="fas fa-exclamation-circle"></i> Review</span>';
+            }
+
+            document.getElementById('kpiTotalClaims').textContent = formatCurrency(totalPaid);
+            document.getElementById('kpiClaimsCount').textContent = `${filteredData.length.toLocaleString()} claims`;
+
+            document.getElementById('kpiAvgClaim').textContent = formatCurrency(avgClaim);
+            document.getElementById('kpiMedianClaim').textContent = `Median: ${formatCurrency(medianClaim)}`;
+
+            document.getElementById('kpiHighValue').textContent = highValueClaims.toLocaleString();
+            document.getElementById('kpiHighValuePct').textContent = `${((highValueClaims / Math.max(filteredData.length, 1)) * 100).toFixed(1)}% of total`;
+            
+            // Update Outstanding KPI
+            document.getElementById('kpiOutstanding').textContent = formatCurrency(outstandingAmount);
+            document.getElementById('kpiOutstandingCount').textContent = `${inProcessCount} pending`;
+        }
+
+        function animateValue(elementId, endValue, suffix = '', decimals = 0) {
+            const el = document.getElementById(elementId);
+            if (!el) return;
+            const duration = 500;
+            const startTime = performance.now();
+            const startValue = parseFloat(el.textContent) || 0;
+            
+            function update(currentTime) {
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                const current = startValue + (endValue - startValue) * easeOutQuart(progress);
+                el.textContent = current.toFixed(decimals) + suffix;
+                if (progress < 1) requestAnimationFrame(update);
+            }
+            requestAnimationFrame(update);
+        }
+
+        function easeOutQuart(x) {
+            return 1 - Math.pow(1 - x, 4);
+        }
+
+        function formatCurrency(value) {
+            if (!value && value !== 0) return '₹0';
+            if (value === 0) return '₹0';
+            return `₹${(value / 100000).toFixed(2)}L`;
+        }
+
+        function updateCharts() {
+            updateDiseaseChart();
+            updateGaugeChart();
+            updateGroupChart();
+            updateHospitalChart();
+            updateClaimTypeChart();
+            updateClaimTypeStatusTable();
+            updateDistributionChart();
+        }
+
+        function createGradient(ctx, color1, color2, horizontal = false) {
+            const gradient = horizontal 
+                ? ctx.createLinearGradient(0, 0, ctx.canvas.width, 0)
+                : ctx.createLinearGradient(0, 0, 0, ctx.canvas.height);
+            gradient.addColorStop(0, color1);
+            gradient.addColorStop(1, color2);
+            return gradient;
+        }
+
+        function updateDiseaseChart() {
+            const ctx = document.getElementById('diseaseChart').getContext('2d');
+            const grouped = {};
+            
+            filteredData.forEach(row => {
+                const disease = getValue(row, 'disease') || 'Unknown';
+                if (!grouped[disease]) grouped[disease] = { paid: 0, claimed: 0, count: 0 };
+                grouped[disease].paid += getNumericValue(row, 'paidAmount');
+                grouped[disease].claimed += getNumericValue(row, 'claimedAmount');
+                grouped[disease].count++;
+            });
+
+            const sorted = Object.entries(grouped).sort((a, b) => b[1].paid - a[1].paid).slice(0, 10);
+            
+            const gradientColors = sorted.map((_, i) => {
+                const startHue = 240 + (i * (60 / Math.max(sorted.length, 1)));
+                const gradient = ctx.createLinearGradient(0, 0, ctx.canvas.width, 0);
+                gradient.addColorStop(0, `hsla(${startHue}, 80%, 65%, 0.9)`);
+                gradient.addColorStop(1, `hsla(${startHue + 30}, 90%, 55%, 0.9)`);
+                return gradient;
+            });
+            if (charts.disease) charts.disease.destroy();
+            charts.disease = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: sorted.map(s => s[0].length > 20 ? s[0].substring(0, 20) + '...' : s[0]),
+                    datasets: [{
+                        label: 'Paid Amount',
+                        data: sorted.map(s => s[1].paid),
+                        backgroundColor: gradientColors,
+                        borderWidth: sorted.map((s) => crossFilters.disease === s[0] ? 2 : 0),
+                        borderColor: '#1e293b',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    onClick: (e, elements) => {
+                        if (elements.length > 0) {
+                            const index = elements[0].index;
+                            const disease = sorted[index][0];
+                            applyCrossFilter('disease', disease);
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            titleFont: { size: 11 },
+                            bodyFont: { size: 11 },
+                            callbacks: {
+                                title: (items) => sorted[items[0].dataIndex][0],
+                                label: (context) => {
+                                    const data = sorted[context.dataIndex][1];
+                                    return [
+                                        `Paid: ${formatCurrency(data.paid)}`,
+                                        `Claimed: ${formatCurrency(data.claimed)}`,
+                                        `Claims: ${data.count}`
+                                    ];
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            ticks: { font: { size: 10 }, callback: (v) => formatCurrency(v) },
+                            grid: { color: '#f1f5f9' }
+                        },
+                        y: {
+                            ticks: { font: { size: 10 } },
+                            grid: { display: false }
+                        }
+                    },
+                    onHover: (e, elements) => {
+                        e.native.target.style.cursor = elements.length ? 'pointer' : 'default';
+                    }
+                }
+            });
+        }
+
+        function updateGaugeChart() {
+            const ctx = document.getElementById('gaugeChart').getContext('2d');
+            const premium = parseFloat(document.getElementById('premiumInput').value) || 0;
+            const totalPaid = filteredData.reduce((sum, r) => sum + getNumericValue(r, 'paidAmount'), 0);
+            
+            const inProcessClaims = filteredData.filter(r => isInProcess(r));
+            const outstandingAmount = inProcessClaims.reduce((sum, r) => {
+                const claimed = getNumericValue(r, 'claimedAmount');
+                const paid = getNumericValue(r, 'paidAmount');
+                return sum + Math.max(claimed - paid, 0);
+            }, 0);
+            
+            const totalLiability = totalPaid + outstandingAmount;
+            const premiumRatio = premium > 0 ? (totalLiability / premium * 100) : 0;
+            const hasPremium = premium > 0;
+            
+            const gaugeMessage = document.getElementById('gaugeMessage');
+            if (hasPremium) {
+                let statusTitle, statusDesc, bgClass;
+                
+                if (premiumRatio <= 70) {
+                    statusTitle = 'Excellent Status';
+                    statusDesc = 'Great job! Keep investing in your wellness programs to maintain this healthy ratio.';
+                    bgClass = 'bg-green-50 border-green-200 text-green-800';
+                } else if (premiumRatio <= 85) {
+                    statusTitle = 'Action Needed';
+                    statusDesc = 'Warning signs detected. Start targeted wellness interventions now to prevent future losses.';
+                    bgClass = 'bg-amber-50 border-amber-200 text-amber-800';
+                } else {
+                    statusTitle = 'Critical Priority';
+                    statusDesc = 'Urgent: Implementing a comprehensive wellness program is essential to reduce these claims.';
+                    bgClass = 'bg-red-50 border-red-200 text-red-800';
+                }
+                
+                gaugeMessage.innerHTML = `
+                    <div class="mt-2 p-4 rounded-xl border ${bgClass} shadow-sm text-center">
+                        <p class="font-bold text-sm uppercase tracking-wide opacity-90 mb-1">${statusTitle} (${premiumRatio.toFixed(1)}%)</p>
+                        <p class="text-xs font-medium leading-relaxed opacity-90">${statusDesc}</p>
+                        <p class="text-[10px] mt-2 font-mono text-gray-500">Premium Base: ${formatCurrency(premium)}</p>
+                    </div>
+                `;
+            } else {
+                gaugeMessage.innerHTML = `
+                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 mt-2 text-center">
+                        <p class="text-xs font-medium text-gray-500">Enter Premium Amount above to see Policy Health Status & Wellness Recommendations</p>
+                    </div>
+                `;
+            }
+
+            if (charts.gauge) charts.gauge.destroy();
+            charts.gauge = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Premium Ratio', 'Remaining'],
+                    datasets: [{
+                        data: hasPremium ? [Math.min(premiumRatio, 100), Math.max(100 - premiumRatio, 0)] : [0, 100],
+                        backgroundColor: [
+                            hasPremium ? (premiumRatio <= 70 ? '#10b981' : premiumRatio <= 85 ? '#f59e0b' : '#ef4444') : '#e5e7eb',
+                            '#e5e7eb'
+                        ],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    cutout: '75%',
+                    rotation: -90,
+                    circumference: 180,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: false }
+                    }
+                },
+                plugins: [{
+                    id: 'gaugeText',
+                    beforeDraw: (chart) => {
+                        const { ctx, width, height } = chart;
+                        ctx.save();
+                        ctx.textAlign = 'center';
+                        
+                        if (hasPremium) {
+                            ctx.font = 'bold 28px Segoe UI';
+                            ctx.fillStyle = premiumRatio <= 70 ? '#10b981' : premiumRatio <= 85 ? '#f59e0b' : '#ef4444';
+                            ctx.fillText(`${premiumRatio.toFixed(1)}%`, width / 2, height - 35);
+                            ctx.font = '12px Segoe UI';
+                            ctx.fillStyle = '#64748b';
+                            ctx.fillText('Claim Ratio', width / 2, height - 15);
+                            
+                            ctx.font = '10px Segoe UI';
+                            ctx.fillStyle = '#94a3b8';
+                            ctx.fillText(`Prem: ${formatCurrency(premium)}`, width / 2, height + 5);
+                        } else {
+                            ctx.font = 'bold 16px Segoe UI';
+                            ctx.fillStyle = '#9ca3af';
+                            ctx.fillText('Enter Premium', width / 2, height - 35);
+                            ctx.font = '11px Segoe UI';
+                            ctx.fillStyle = '#d1d5db';
+                            ctx.fillText('↑ to update gauge', width / 2, height - 15);
+                        }
+                        ctx.restore();
+                    }
+                }]
+            });
+        }
+
+        function updateGroupChart() {
+            if (!groupField) {
+                document.getElementById('groupChartContainer').style.display = 'none';
+                return;
+            }
+            document.getElementById('groupChartContainer').style.display = 'block';
+
+            const ctx = document.getElementById('groupChart').getContext('2d');
+            const grouped = {};
+            
+            filteredData.forEach(row => {
+                const groupVal = getValue(row, groupField) || 'Unknown';
+                const normalized = groupField === 'relation' ? normalizeRelation(groupVal) : groupVal;
+                if (!grouped[normalized]) grouped[normalized] = { paid: 0, count: 0 };
+                grouped[normalized].paid += getNumericValue(row, 'paidAmount');
+                grouped[normalized].count++;
+            });
+
+            const sorted = Object.entries(grouped).sort((a, b) => b[1].paid - a[1].paid).slice(0, 8);
+            
+            const gradientColors = sorted.map((_, i) => {
+                const startHue = groupField === 'city' ? 170 + (i * 30 / 8) : 220 + (i * 40 / 8);
+                const gradient = ctx.createLinearGradient(0, 0, 0, ctx.canvas.height);
+                gradient.addColorStop(0, `hsla(${startHue}, 80%, 60%, 0.9)`);
+                gradient.addColorStop(1, `hsla(${startHue + 30}, 90%, 45%, 0.9)`);
+                return gradient;
+            });
+
+            if (charts.group) charts.group.destroy();
+            charts.group = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: sorted.map(s => s[0]),
+                    datasets: [{
+                        label: 'Total Paid',
+                        data: sorted.map(s => s[1].paid),
+                        backgroundColor: sorted.map((s, i) => crossFilters.group === s[0] ? '#4f46e5' : gradientColors[i]),
+                        borderColor: '#4f46e5',
+                        borderWidth: sorted.map(s => crossFilters.group === s[0] ? 2 : 0),
+                        borderRadius: 6,
+                        hoverBackgroundColor: '#4f46e5'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    onClick: (e, elements) => {
+                        if (elements.length > 0) {
+                            const val = sorted[elements[0].index][0];
+                            applyCrossFilter('group', val);
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            titleFont: { size: 11 },
+                            bodyFont: { size: 11 },
+                            callbacks: {
+                                label: (context) => {
+                                    const data = sorted[context.dataIndex][1];
+                                    return [`Paid: ${formatCurrency(data.paid)}`, `Claims: ${data.count}`];
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { font: { size: 10 }, callback: (v) => formatCurrency(v) },
+                            grid: { color: '#f1f5f9' }
+                        },
+                        x: { ticks: { font: { size: 10 } }, grid: { display: false } }
+                    },
+                    onHover: (e, elements) => {
+                        e.native.target.style.cursor = elements.length ? 'pointer' : 'default';
+                    }
+                }
+            });
+        }
+
+        function updateHospitalChart() {
+            const ctx = document.getElementById('hospitalChart').getContext('2d');
+            const grouped = {};
+            
+            filteredData.forEach(row => {
+                const hospital = getValue(row, 'hospital') || 'Unknown';
+                if (!grouped[hospital]) grouped[hospital] = { paid: 0, count: 0 };
+                grouped[hospital].paid += getNumericValue(row, 'paidAmount');
+                grouped[hospital].count++;
+            });
+
+            const sorted = Object.entries(grouped).sort((a, b) => b[1].paid - a[1].paid).slice(0, 8);
+            
+            const gradientColors = sorted.map((_, i) => {
+                const startHue = 170 + (i * (30 / Math.max(sorted.length, 1)));
+                const gradient = ctx.createLinearGradient(0, 0, 0, ctx.canvas.height);
+                gradient.addColorStop(0, `hsla(${startHue}, 85%, 55%, 0.9)`);
+                gradient.addColorStop(1, `hsla(${startHue + 20}, 95%, 40%, 0.9)`);
+                return gradient;
+            });
+
+            if (charts.hospital) charts.hospital.destroy();
+            charts.hospital = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: sorted.map(s => s[0].length > 15 ? s[0].substring(0, 15) + '...' : s[0]),
+                    datasets: [{
+                        label: 'Total Paid',
+                        data: sorted.map(s => s[1].paid),
+                        backgroundColor: sorted.map((s, i) => crossFilters.hospital === s[0] ? '#0d9488' : gradientColors[i]),
+                        borderColor: '#0d9488',
+                        borderWidth: sorted.map(s => crossFilters.hospital === s[0] ? 2 : 0),
+                        borderRadius: 6,
+                        hoverBackgroundColor: '#0d9488'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    onClick: (e, elements) => {
+                        if (elements.length > 0) {
+                            const hospital = sorted[elements[0].index][0];
+                            applyCrossFilter('hospital', hospital);
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            titleFont: { size: 11 },
+                            bodyFont: { size: 11 },
+                            callbacks: {
+                                title: (items) => sorted[items[0].dataIndex][0],
+                                label: (context) => {
+                                    const data = sorted[context.dataIndex][1];
+                                    return [`Paid: ${formatCurrency(data.paid)}`, `Claims: ${data.count}`];
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { font: { size: 10 }, callback: (v) => formatCurrency(v) },
+                            grid: { color: '#f1f5f9' }
+                        },
+                        x: { ticks: { font: { size: 10 } }, grid: { display: false } }
+                    },
+                    onHover: (e, elements) => {
+                        e.native.target.style.cursor = elements.length ? 'pointer' : 'default';
+                    }
+                }
+            });
+        }
+
+        function updateClaimTypeChart() {
+            const ctx = document.getElementById('claimTypeChart').getContext('2d');
+            const grouped = {
+                'Settled': { count: 0, amount: 0 },
+                'In Process': { count: 0, amount: 0 },
+                'Denied': { count: 0, amount: 0 }
+            };
+            
+            filteredData.forEach(row => {
+                const category = String(getValue(row, 'category') || '').toLowerCase().replace(/[\s\-_]/g, '');
+                
+                if (category.includes('settled') || category.includes('approved') || category.includes('paid') || category.includes('closed')) {
+                    grouped['Settled'].count++;
+                    grouped['Settled'].amount += getNumericValue(row, 'paidAmount');
+                } else if (category.includes('denied') || category.includes('rejected') || category.includes('declined')) {
+                    grouped['Denied'].count++;
+                    grouped['Denied'].amount += getNumericValue(row, 'claimedAmount');
+                } else if (category.includes('inprocess') || category.includes('pending') || category.includes('processing') || category.includes('open') || category.includes('submitted') || category.includes('review') || category.includes('progress')) {
+                    grouped['In Process'].count++;
+                    grouped['In Process'].amount += getNumericValue(row, 'claimedAmount');
+                } else {
+                    grouped['Settled'].count++;
+                    grouped['Settled'].amount += getNumericValue(row, 'paidAmount');
+                }
+            });
+
+            const getStatusGradient = (label) => {
+                const gradient = ctx.createLinearGradient(0, 0, 0, ctx.canvas.height);
+                if (label === 'Settled') {
+                    gradient.addColorStop(0, '#34d399');
+                    gradient.addColorStop(1, '#059669');
+                } else if (label === 'In Process') {
+                    gradient.addColorStop(0, '#fbbf24');
+                    gradient.addColorStop(1, '#d97706');
+                } else {
+                    gradient.addColorStop(0, '#f87171');
+                    gradient.addColorStop(1, '#dc2626');
+                }
+                return gradient;
+            };
+            
+            const labels = Object.keys(grouped).filter(k => grouped[k].count > 0);
+            const backgroundColors = labels.map(l => getStatusGradient(l));
+
+            const dataValues = labels.map(l => grouped[l].count);
+
+            if (charts.claimType) charts.claimType.destroy();
+            charts.claimType = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: dataValues,
+                        backgroundColor: backgroundColors,
+                        borderWidth: 1,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '60%',
+                    events: [],
+                    onClick: null,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { padding: 8, font: { size: 10 }, usePointStyle: true }
+                        },
+                        tooltip: { enabled: false } 
+                    }
+                }
+            });
+        }
+
+        function normalizeClaimType(type) {
+            if (!type) return 'Unknown';
+            const normalized = String(type).toLowerCase().trim().replace(/[\s\-_]+/g, '');
+            
+            if (normalized.includes('cashless') || normalized.includes('cash less') || normalized.includes('network')) {
+                return 'Cashless';
+            } else if (normalized.includes('reimbursement') || normalized.includes('reimburse') || normalized.includes('reim')) {
+                return 'Reimbursement';
+            }
+            
+            return type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
+        }
+
+        function getClaimStatus(row) {
+            const category = String(getValue(row, 'category') || '').toLowerCase().replace(/[\s\-_]/g, '');
+            
+            if (category.includes('settled') || category.includes('approved') || category.includes('paid') || category.includes('closed')) {
+                return 'Settled';
+            } else if (category.includes('denied') || category.includes('rejected') || category.includes('declined')) {
+                return 'Denied';
+            } else if (category.includes('inprocess') || category.includes('pending') || category.includes('processing') || category.includes('open') || category.includes('submitted') || category.includes('review') || category.includes('progress')) {
+                return 'In Process';
+            }
+            
+            return 'Settled';
+        }
+
+        function updateClaimTypeStatusTable() {
+            const claimTypes = {};
+            const statuses = ['Settled', 'In Process', 'Denied'];
+            
+            filteredData.forEach(row => {
+                const claimType = normalizeClaimType(getValue(row, 'claimType'));
+                const status = getClaimStatus(row);
+                
+                if (!claimTypes[claimType]) {
+                    claimTypes[claimType] = {
+                        'Settled': 0,
+                        'In Process': 0,
+                        'Denied': 0,
+                        'Total': 0
+                    };
+                }
+                
+                claimTypes[claimType][status]++;
+                claimTypes[claimType]['Total']++;
+            });
+            
+            const sortedTypes = Object.entries(claimTypes).sort((a, b) => b[1].Total - a[1].Total);
+            
+            const statusTotals = {
+                'Settled': 0,
+                'In Process': 0,
+                'Denied': 0,
+                'Total': 0
+            };
+            
+            sortedTypes.forEach(([_, data]) => {
+                statuses.forEach(s => statusTotals[s] += data[s]);
+                statusTotals.Total += data.Total;
+            });
+            
+            let html = `
+                <table class="w-full text-xs border-collapse">
+                    <thead>
+                        <tr class="bg-gray-100">
+                            <th class="px-2 py-2 text-left font-semibold border-b">Claim Type</th>
+                            <th class="px-2 py-2 text-center font-semibold border-b text-green-700">
+                                <i class="fas fa-check-circle mr-1"></i>Settled
+                            </th>
+                            <th class="px-2 py-2 text-center font-semibold border-b text-amber-600">
+                                <i class="fas fa-clock mr-1"></i>In Process
+                            </th>
+                            <th class="px-2 py-2 text-center font-semibold border-b text-red-600">
+                                <i class="fas fa-times-circle mr-1"></i>Denied
+                            </th>
+                            <th class="px-2 py-2 text-center font-semibold border-b text-gray-700">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            sortedTypes.forEach(([claimType, data]) => {
+                const settledPct = data.Total > 0 ? ((data.Settled / data.Total) * 100).toFixed(0) : 0;
+                const inProcessPct = data.Total > 0 ? ((data['In Process'] / data.Total) * 100).toFixed(0) : 0;
+                const deniedPct = data.Total > 0 ? ((data.Denied / data.Total) * 100).toFixed(0) : 0;
+                
+                html += `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="px-2 py-2 font-medium">${claimType}</td>
+                        <td class="px-2 py-2 text-center">
+                            <span class="text-green-700 font-semibold">${data.Settled}</span>
+                            <span class="text-gray-400 text-[10px] ml-1">(${settledPct}%)</span>
+                        </td>
+                        <td class="px-2 py-2 text-center">
+                            <span class="text-amber-600 font-semibold">${data['In Process']}</span>
+                            <span class="text-gray-400 text-[10px] ml-1">(${inProcessPct}%)</span>
+                        </td>
+                        <td class="px-2 py-2 text-center">
+                            <span class="text-red-600 font-semibold">${data.Denied}</span>
+                            <span class="text-gray-400 text-[10px] ml-1">(${deniedPct}%)</span>
+                        </td>
+                        <td class="px-2 py-2 text-center font-bold text-gray-700">${data.Total}</td>
+                    </tr>
+                `;
+            });
+            
+            const totalSettledPct = statusTotals.Total > 0 ? ((statusTotals.Settled / statusTotals.Total) * 100).toFixed(0) : 0;
+            const totalInProcessPct = statusTotals.Total > 0 ? ((statusTotals['In Process'] / statusTotals.Total) * 100).toFixed(0) : 0;
+            const totalDeniedPct = statusTotals.Total > 0 ? ((statusTotals.Denied / statusTotals.Total) * 100).toFixed(0) : 0;
+            
+            html += `
+                    <tr class="bg-gray-100 font-bold">
+                        <td class="px-2 py-2">Total</td>
+                        <td class="px-2 py-2 text-center text-green-700">${statusTotals.Settled} <span class="text-gray-500 text-[10px]">(${totalSettledPct}%)</span></td>
+                        <td class="px-2 py-2 text-center text-amber-600">${statusTotals['In Process']} <span class="text-gray-500 text-[10px]">(${totalInProcessPct}%)</span></td>
+                        <td class="px-2 py-2 text-center text-red-600">${statusTotals.Denied} <span class="text-gray-500 text-[10px]">(${totalDeniedPct}%)</span></td>
+                        <td class="px-2 py-2 text-center text-gray-800">${statusTotals.Total}</td>
+                    </tr>
+                </tbody>
+                </table>
+            `;
+            
+            document.getElementById('claimTypeStatusTable').innerHTML = html;
+        }
+
+        function updateDistributionChart() {
+            const ctx = document.getElementById('distributionChart').getContext('2d');
+            const amounts = filteredData.map(r => getNumericValue(r, 'paidAmount')).filter(v => v > 0);
+            
+            const buckets = {
+                '0-10K': 0, '10-25K': 0, '25-50K': 0, '50K-1L': 0,
+                '1-2.5L': 0, '2.5-5L': 0, '5L+': 0
+            };
+            
+            amounts.forEach(amt => {
+                if (amt <= 10000) buckets['0-10K']++;
+                else if (amt <= 25000) buckets['10-25K']++;
+                else if (amt <= 50000) buckets['25-50K']++;
+                else if (amt <= 100000) buckets['50K-1L']++;
+                else if (amt <= 250000) buckets['1-2.5L']++;
+                else if (amt <= 500000) buckets['2.5-5L']++;
+                else buckets['5L+']++;
+            });
+
+            const gradientBars = Object.keys(buckets).map((_, i) => {
+                const startHue = 320 - (i * (40 / Math.max(Object.keys(buckets).length, 1)));
+                const gradient = ctx.createLinearGradient(0, 0, 0, ctx.canvas.height);
+                gradient.addColorStop(0, `hsla(${startHue}, 90%, 65%, 0.9)`);
+                gradient.addColorStop(1, `hsla(${startHue - 20}, 90%, 50%, 0.9)`);
+                return gradient;
+            });
+
+            if (charts.distribution) charts.distribution.destroy();
+            charts.distribution = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(buckets),
+                    datasets: [{
+                        label: 'Claims',
+                        data: Object.values(buckets),
+                        backgroundColor: gradientBars,
+                        borderRadius: 6,
+                        hoverBackgroundColor: '#db2777'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            titleFont: { size: 11 },
+                            bodyFont: { size: 11 },
+                            callbacks: {
+                                label: (context) => `${context.raw} claims (${((context.raw / Math.max(amounts.length, 1)) * 100).toFixed(1)}%)`
+                            }
+                        }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { font: { size: 10 } }, grid: { color: '#f1f5f9' } },
+                        x: { ticks: { font: { size: 9 } }, grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        function normalizeRelation(rel) {
+            if (!rel) return 'Unknown';
+            const r = String(rel).toLowerCase().trim().replace(/[\s\-_]+/g, '');
+            
+            if (r.includes('self') || r.includes('employee') || r === '1' || r.includes('proposer')) return 'Self';
+            if (r.includes('spouse') || r.includes('wife') || r.includes('husband') || r.includes('partner')) return 'Spouse';
+            if (r.includes('son')) return 'Son';
+            if (r.includes('daughter')) return 'Daughter';
+            if (r.includes('mother') && !r.includes('law')) return 'Mother';
+            if (r.includes('father') && !r.includes('law')) return 'Father';
+            if (r.includes('mother') && r.includes('law')) return 'Mother-in-law';
+            if (r.includes('father') && r.includes('law')) return 'Father-in-law';
+            
+            return rel.charAt(0).toUpperCase() + rel.slice(1).toLowerCase();
+        }
+
+        function updateMatrix() {
+            if (!groupField) {
+                document.getElementById('matrixContainer').innerHTML = '<div class="p-8 text-center text-gray-500"><i class="fas fa-th text-3xl mb-2"></i><br>No group field (Relation/City) found for matrix</div>';
+                return;
+            }
+
+            const diseaseCounts = {};
+            const groupCounts = {};
+            
+            filteredData.forEach(r => {
+                const d = getValue(r, 'disease');
+                const g = getValue(r, groupField);
+                const normalized = groupField === 'relation' ? normalizeRelation(g) : g;
+                if (d) diseaseCounts[d] = (diseaseCounts[d] || 0) + 1;
+                if (normalized) groupCounts[normalized] = (groupCounts[normalized] || 0) + 1;
+            });
+
+            const diseases = Object.keys(diseaseCounts).sort((a,b) => diseaseCounts[b] - diseaseCounts[a]).slice(0, 8);
+            const groups = Object.keys(groupCounts).sort((a,b) => groupCounts[b] - groupCounts[a]).slice(0, 8);
+            
+            if (diseases.length === 0 || groups.length === 0) {
+                document.getElementById('matrixContainer').innerHTML = '<div class="p-8 text-center text-gray-500"><i class="fas fa-inbox text-3xl mb-2"></i><br>Not enough data to generate matrix</div>';
+                return;
+            }
+            
+            const matrix = {};
+            const rowTotals = {};
+
+            diseases.forEach(d => {
+                matrix[d] = {};
+                rowTotals[d] = 0;
+                groups.forEach(g => {
+                    matrix[d][g] = { count: 0, paid: 0 };
+                });
+            });
+            
+            filteredData.forEach(row => {
+                const disease = getValue(row, 'disease');
+                const groupRaw = getValue(row, groupField);
+                const group = groupField === 'relation' ? normalizeRelation(groupRaw) : groupRaw;
+                if (disease && group && matrix[disease] && matrix[disease][group]) {
+                    matrix[disease][group].count++;
+                    matrix[disease][group].paid += getNumericValue(row, 'paidAmount');
+                    rowTotals[disease]++;
+                }
+            });
+
+            let html = `
+                <table class="w-full text-sm table-fixed border-collapse">
+                    <thead>
+                        <tr>
+                            <th class="w-32 px-3 py-2 text-left bg-gray-100 font-semibold border-b border-gray-200">Disease</th>
+                            ${groups.map(g => `<th class="px-2 py-2 text-center bg-gray-100 font-semibold border-b border-gray-200 capitalize text-xs">${g}</th>`).join('')}
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            diseases.forEach(disease => {
+                const total = rowTotals[disease];
+                html += `<tr class="border-b border-gray-100 hover:bg-gray-50 transition">
+                    <td class="px-3 py-2 font-medium text-gray-700 truncate" title="${disease}">
+                        <div class="truncate text-xs font-semibold text-gray-800">${disease}</div>
+                        <div class="text-[10px] text-gray-400 mt-0.5">Total: ${total}</div>
+                    </td>`;
+                groups.forEach(group => {
+                    const data = matrix[disease][group] || { count: 0, paid: 0 };
+                    const count = data.count;
+                    const pct = total > 0 ? (count / total * 100) : 0;
+                    
+                    let bgStyle = '';
+                    let textClass = '';
+                    
+                    if (count > 0) {
+                        const opacity = Math.min(Math.max(pct / 60, 0.15), 1); 
+                        const isDark = pct > 40;
+                        bgStyle = `background-color: rgba(79, 70, 229, ${opacity});`;
+                        textClass = isDark ? 'text-white' : 'text-indigo-900';
+                    } else {
+                        bgStyle = 'background-color: #fcfcfc;'; 
+                        textClass = 'text-gray-200';
+                    }
+                    
+                    const tooltipHtml = count > 0 ? `
+                        <div class="opacity-0 group-hover:opacity-100 fixed transform -translate-x-1/2 -translate-y-full mb-2 bg-white text-gray-800 text-xs rounded-lg shadow-xl border border-gray-200 pointer-events-none z-[9999] transition-opacity duration-200 w-48 p-0" style="margin-top: -10px;">
+                            <div class="bg-gray-50 px-3 py-2 rounded-t-lg border-b border-gray-100 flex justify-between items-center">
+                                <span class="font-bold text-indigo-700 truncate max-w-[100px]">${group}</span>
+                                <span class="bg-indigo-100 text-indigo-800 px-1.5 py-0.5 rounded text-[10px] font-bold">${pct.toFixed(1)}%</span>
+                            </div>
+                            <div class="p-3 space-y-2">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-500">Count</span>
+                                    <span class="font-mono font-medium">${count} <span class="text-gray-300 text-[10px]">/ ${total}</span></span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-500">Paid Amt</span>
+                                    <span class="font-mono font-bold text-gray-700">${formatCurrency(data.paid)}</span>
+                                </div>
+                            </div>
+                            <div class="bg-gray-50 px-3 py-1.5 rounded-b-lg border-t border-gray-100">
+                                <p class="text-[10px] text-gray-400 text-center italic truncate">${disease}</p>
+                            </div>
+                        </div>
+                    ` : '';
+                    
+                    const hasData = count > 0;
+                    const cursorClass = hasData ? 'cursor-pointer' : 'cursor-default';
+                    const clickEvent = hasData ? `onclick="applyCrossFilter('disease', '${disease.replace(/'/g, "\\'")}'); applyCrossFilter('group', '${group.replace(/'/g, "\\'")}');"` : '';
+
+                    html += `<td class="px-1 py-2 text-center ${cursorClass} relative group border-l border-dashed border-gray-100" 
+                                style="${bgStyle}"
+                                ${clickEvent}>
+                                <span class="font-bold text-xs ${textClass}">${hasData ? pct.toFixed(0) + '%' : '-'}</span>
+                                ${tooltipHtml}
+                            </td>`;
+                });
+                html += '</tr>';
+            });
+            
+            html += '</tbody></table>';
+            html += '<div class="flex items-center gap-4 mt-3 text-xs text-gray-500 justify-end"><span>Color intensity indicates % share of claims within disease category</span></div>';
+            
+            document.getElementById('matrixContainer').innerHTML = html;
+        }
+
+        function generateInsights() {
+            const insights = [];
+            const totalPaid = filteredData.reduce((sum, r) => sum + getNumericValue(r, 'paidAmount'), 0);
+            
+            const premiumInput = document.getElementById('premiumInput');
+            const premium = parseFloat(premiumInput ? premiumInput.value : 0) || 0;
+            
+            const inProcessClaims = filteredData.filter(r => isInProcess(r));
+            const outstandingAmount = inProcessClaims.reduce((sum, r) => {
+                const claimed = getNumericValue(r, 'claimedAmount');
+                const paid = getNumericValue(r, 'paidAmount');
+                return sum + Math.max(claimed - paid, 0);
+            }, 0);
+            
+            let claimRatio = 0;
+            let hasPremium = false;
+            
+            if (premium > 0) {
+                claimRatio = (totalPaid + outstandingAmount) / premium * 100;
+                hasPremium = true;
+            }
+            
+            const diseaseGroup = {};
+            filteredData.forEach(r => {
+                const disease = getValue(r, 'disease') || 'Unknown';
+                if (!diseaseGroup[disease]) diseaseGroup[disease] = 0;
+                diseaseGroup[disease] += getNumericValue(r, 'paidAmount');
+            });
+            const topDisease = Object.entries(diseaseGroup).sort((a, b) => b[1] - a[1])[0];
+            
+            let topGroup = null;
+            if (groupField) {
+                const groupGroup = {};
+                filteredData.forEach(r => {
+                    const g = getValue(r, groupField) || 'Unknown';
+                    const normalized = groupField === 'relation' ? normalizeRelation(g) : g;
+                    if (!groupGroup[normalized]) groupGroup[normalized] = 0;
+                    groupGroup[normalized] += getNumericValue(r, 'paidAmount');
+                });
+                topGroup = Object.entries(groupGroup).sort((a, b) => b[1] - a[1])[0];
+            }
+            
+            const empCount = {};
+            filteredData.forEach(r => {
+                const emp = getValue(r, 'employeeName') || getValue(r, 'employeeCode');
+                if (emp) {
+                    if (!empCount[emp]) empCount[emp] = 0;
+                    empCount[emp]++;
+                }
+            });
+            const frequentClaimants = Object.entries(empCount).filter(e => e[1] > 3).length;
+
+            if (hasPremium) {
+                if (claimRatio > 85) {
+                    insights.push({
+                        icon: 'fas fa-exclamation-triangle',
+                        color: 'red',
+                        title: 'High Claim Ratio',
+                        text: `At ${claimRatio.toFixed(1)}%, claims exceed 85% of premium. Immediate review required.`
+                    });
+                } else if (claimRatio > 70) {
+                    insights.push({
+                        icon: 'fas fa-exclamation-circle',
+                        color: 'amber',
+                        title: 'Elevated Claim Ratio',
+                        text: `Claim ratio of ${claimRatio.toFixed(1)}% is getting high. Monitor closely.`
+                    });
+                } else {
+                    insights.push({
+                        icon: 'fas fa-check-circle',
+                        color: 'green',
+                        title: 'Healthy Claim Ratio',
+                        text: `Claim ratio of ${claimRatio.toFixed(1)}% is within healthy limits.`
+                    });
+                }
+            } else {
+                 insights.push({
+                    icon: 'fas fa-info-circle',
+                    color: 'blue',
+                    title: 'Enter Premium',
+                    text: `Enter premium amount to see Claim Ratio analysis.`
+                });
+            }
+
+            if (topDisease) {
+                const pct = totalPaid > 0 ? ((topDisease[1]/totalPaid)*100).toFixed(1) : 0;
+                insights.push({
+                    icon: 'fas fa-disease',
+                    color: 'purple',
+                    title: 'Top Cost Driver',
+                    text: `"${topDisease[0]}" accounts for ${formatCurrency(topDisease[1])} (${pct}% of total). Consider targeted wellness programs.`
+                });
+            }
+
+            if (topGroup) {
+                insights.push({
+                    icon: groupField === 'city' ? 'fas fa-city' : 'fas fa-users',
+                    color: 'blue',
+                    title: groupField === 'city' ? 'Top City' : 'Family Impact',
+                    text: `${topGroup[0]} has highest claims at ${formatCurrency(topGroup[1])}. Analyze this ${groupField}.`
+                });
+            }
+
+            if (frequentClaimants > 0) {
+                insights.push({
+                    icon: 'fas fa-users',
+                    color: 'amber',
+                    title: 'Repeat Claimants',
+                    text: `${frequentClaimants} employees have filed 4+ claims. Consider health management interventions.`
+                });
+            }
+
+            const amounts = filteredData.map(r => getNumericValue(r, 'paidAmount')).filter(v => v > 0);
+            const avgClaim = amounts.length > 0 ? amounts.reduce((a, b) => a + b, 0) / amounts.length : 0;
+            const highValueCount = amounts.filter(a => a > avgClaim * 3).length;
+            
+            if (highValueCount > 0) {
+                insights.push({
+                    icon: 'fas fa-chart-line',
+                    color: 'rose',
+                    title: 'Outlier Detection',
+                    text: `${highValueCount} claims are 3x above average (${formatCurrency(avgClaim)}). These may require review.`
+                });
+            }
+
+            document.getElementById('insightsPanel').innerHTML = insights.map(insight => `
+                <div class="insight-card bg-${insight.color}-50 border border-${insight.color}-200 rounded-lg p-3 hover:shadow-md transition cursor-pointer">
+                    <div class="flex items-start gap-2">
+                        <div class="bg-${insight.color}-100 p-1.5 rounded-lg flex-shrink-0">
+                            <i class="${insight.icon} text-${insight.color}-600 text-xs"></i>
+                        </div>
+                        <div>
+                            <h4 class="font-semibold text-${insight.color}-800">${insight.title}</h4>
+                            <p class="text-${insight.color}-700 mt-0.5">${insight.text}</p>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function drillKPI(kpiType) {
+            const modal = document.getElementById('drillModal');
+            const title = document.getElementById('drillTitle');
+            const body = document.getElementById('drillBody');
+            const breadcrumb = document.getElementById('drillBreadcrumb');
+            
+            breadcrumb.innerHTML = '<span onclick="closeDrillModal()">Dashboard</span> <i class="fas fa-chevron-right text-xs"></i> <span class="active">KPI Details</span>';
+            
+            let content = '';
+            
+            switch(kpiType) {
+                case 'totalClaims':
+                    title.textContent = 'Claims Breakdown';
+                    const claimsByType = {};
+                    filteredData.forEach(r => {
+                        const t = getValue(r, 'claimType') || 'Unknown';
+                        if (!claimsByType[t]) claimsByType[t] = { paid: 0, count: 0 };
+                        claimsByType[t].paid += getNumericValue(r, 'paidAmount');
+                        claimsByType[t].count++;
+                    });
+                    content = `<table class="w-full text-sm"><thead><tr><th class="text-left p-2 bg-gray-100">Type</th><th class="text-right p-2 bg-gray-100">Count</th><th class="text-right p-2 bg-gray-100">Amount</th><th class="text-right p-2 bg-gray-100">Avg</th></tr></thead><tbody>`;
+                    Object.entries(claimsByType).sort((a,b) => b[1].paid - a[1].paid).forEach(([type, data]) => {
+                        content += `<tr class="border-b hover:bg-gray-50"><td class="p-2">${type}</td><td class="p-2 text-right">${data.count}</td><td class="p-2 text-right font-medium">${formatCurrency(data.paid)}</td><td class="p-2 text-right">${formatCurrency(data.paid/data.count)}</td></tr>`;
+                    });
+                    content += '</tbody></table>';
+                    break;
+
+                case 'outstanding':
+                    title.textContent = 'Outstanding Claims (In Process)';
+                    const inProcessClaims = filteredData.filter(r => isInProcess(r)).sort((a,b) => getNumericValue(b, 'claimedAmount') - getNumericValue(a, 'claimedAmount')).slice(0, 20);
+                    content = `<table class="w-full text-sm"><thead><tr><th class="text-left p-2 bg-gray-100">Claim ID</th><th class="text-left p-2 bg-gray-100">Employee</th><th class="text-left p-2 bg-gray-100">Hospital</th><th class="text-right p-2 bg-gray-100">Claimed</th><th class="text-right p-2 bg-gray-100">Paid</th><th class="text-right p-2 bg-gray-100">Outstanding</th></tr></thead><tbody>`;
+                    inProcessClaims.forEach(row => {
+                         const claimed = getNumericValue(row, 'claimedAmount');
+                         const paid = getNumericValue(row, 'paidAmount');
+                         const diff = Math.max(claimed - paid, 0);
+                         content += `<tr class="border-b hover:bg-gray-50"><td class="p-2">${getValue(row, 'claimId') || '-'}</td><td class="p-2">${getValue(row, 'employeeName') || getValue(row, 'employeeCode')}</td><td class="p-2">${getValue(row, 'hospital')}</td><td class="p-2 text-right">${formatCurrency(claimed)}</td><td class="p-2 text-right">${formatCurrency(paid)}</td><td class="p-2 text-right font-bold text-orange-600">${formatCurrency(diff)}</td></tr>`;
+                    });
+                    content += '</tbody></table>';
+                    break;
+
+                // other cases remain the same...
+                default:
+                    title.textContent = 'Detailed View';
+                    content = '<p class="text-gray-500">Detailed drill-through data would appear here.</p>';
+            }
+            
+            body.innerHTML = content;
+            modal.classList.add('show');
+        }
+
+        function closeDrillModal(e) {
+            if (!e || e.target === document.getElementById('drillModal')) {
+                document.getElementById('drillModal').classList.remove('show');
+            }
+        }
+
+        function exportReport() {
+            const totalPaid = filteredData.reduce((sum, r) => sum + getNumericValue(r, 'paidAmount'), 0);
+            const totalClaimed = filteredData.reduce((sum, r) => sum + getNumericValue(r, 'claimedAmount'), 0);
+            const payoutRatio = totalClaimed > 0 ? (totalPaid / totalClaimed * 100) : 0;
+            
+            const report = `
+CLAIMS ANALYTICS REPORT
+Generated: ${new Date().toLocaleString()}
+=====================================
+
+KEY METRICS
+-----------
+Total Claims: ${filteredData.length}
+Total Paid Amount: ${formatCurrency(totalPaid)}
+Payout Ratio: ${payoutRatio.toFixed(2)}%
+
+Status: ${payoutRatio <= 70 ? 'HEALTHY' : payoutRatio <= 85 ? 'WARNING' : 'CRITICAL'}
+
+This report was generated from the Claims Analytics Dashboard.
+            `;
+            
+            const blob = new Blob([report], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'claims_report_' + new Date().toISOString().split('T')[0] + '.txt';
+            a.click();
+        }
+
+        function loadSampleData() {
+            showLoading(true);
+            
+            const diseases = ['Cardiac Surgery', 'Orthopedic', 'Oncology', 'Maternity', 'General Surgery', 'Neurology', 'Gastroenterology', 'Pulmonology', 'Nephrology', 'ENT'];
+            const relations = ['Self', 'Spouse', 'Son', 'Daughter', 'Father', 'Mother', 'Father-in-law', 'Mother-in-law'];
+            const cities = ['Mumbai', 'Delhi', 'Bangalore', 'Hyderabad', 'Chennai', 'Kolkata', 'Pune', 'Ahmedabad'];
+            const hospitals = ['Apollo Hospital', 'Fortis Healthcare', 'Max Hospital', 'Manipal Hospital', 'Narayana Health', 'AIIMS', 'Medanta', 'Kokilaben', 'Lilavati', 'Hinduja'];
+            const claimTypes = ['Cashless', 'Reimbursement'];
+            const categories = ['Settled', 'Settled', 'Settled', 'Settled', 'In Process', 'In Process', 'Rejected'];
+            const names = ['Rahul Sharma', 'Priya Patel', 'Amit Kumar', 'Sneha Gupta', 'Vikram Singh', 'Anjali Mehta', 'Rajesh Verma', 'Pooja Reddy', 'Sanjay Joshi', 'Meera Nair'];
+
+            rawData = [];
+            
+            for (let i = 0; i < 300; i++) {
+                const claimedAmount = Math.floor(Math.random() * 400000) + 10000;
+                const category = categories[Math.floor(Math.random() * categories.length)];
+                const paidAmount = category === 'In Process' ? 0 : claimedAmount * (0.75 + Math.random() * 0.2);
+                
+                rawData.push({
+                    'Claim ID': 'CLM' + String(10000 + i).padStart(5, '0'),
+                    'Employee Code': `EMP${String(Math.floor(Math.random() * 1000) + 1).padStart(4, '0')}`,
+                    'Employee Name': names[Math.floor(Math.random() * names.length)],
+                    'Claim Type': claimTypes[Math.floor(Math.random() * claimTypes.length)],
+                    'Category': category,
+                    'Disease': diseases[Math.floor(Math.random() * diseases.length)],
+                    'Hospital': hospitals[Math.floor(Math.random() * hospitals.length)],
+                    'Relation': relations[Math.floor(Math.random() * relations.length)],
+                    'City': cities[Math.floor(Math.random() * cities.length)],
+                    'Claimed Amount': claimedAmount,
+                    'Paid Amount': Math.floor(paidAmount),
+                });
+            }
+
+            columnMapping = {
+                claimId: 'Claim ID',
+                employeeCode: 'Employee Code',
+                employeeName: 'Employee Name',
+                claimType: 'Claim Type',
+                category: 'Category',
+                disease: 'Disease',
+                hospital: 'Hospital',
+                relation: 'Relation',
+                city: 'City',
+                claimedAmount: 'Claimed Amount',
+                paidAmount: 'Paid Amount',
+            };
+
+            setTimeout(() => {
+                initializeDashboard();
+                showLoading(false);
+            }, 500);
+        }
+
+        function updatePremiumRatio() {
+            const premiumInput = document.getElementById('premiumInput');
+            const premium = parseFloat(premiumInput?.value) || 0;
+            const totalPaid = filteredData.reduce((sum, r) => sum + getNumericValue(r, 'paidAmount'), 0);
+            
+            const inProcessClaims = filteredData.filter(r => isInProcess(r));
+            const outstandingAmount = inProcessClaims.reduce((sum, r) => {
+                const claimed = getNumericValue(r, 'claimedAmount');
+                const paid = getNumericValue(r, 'paidAmount');
+                return sum + Math.max(claimed - paid, 0);
+            }, 0);
+            
+            const totalLiability = totalPaid + outstandingAmount;
+            
+            const kpiRatio = document.getElementById('kpiPremiumRatio');
+            const ratioBar = document.getElementById('premiumRatioBar');
+            const trend = document.getElementById('kpiPremiumTrend');
+            const amt = document.getElementById('kpiPremiumAmount');
+
+            if (premium > 0) {
+                const premiumRatio = (totalLiability / premium * 100);
+                
+                if(kpiRatio) kpiRatio.textContent = premiumRatio.toFixed(1) + '%';
+                
+                if(ratioBar) {
+                    ratioBar.style.width = `${Math.min(premiumRatio, 100)}%`;
+                    ratioBar.className = `h-2 rounded-full transition-all duration-500 ${
+                        premiumRatio <= 70 ? 'bg-green-500' : premiumRatio <= 85 ? 'bg-amber-500' : 'bg-red-500'
+                    }`;
+                }
+                
+                if(trend) {
+                    trend.innerHTML = premiumRatio <= 70 
+                        ? '<span class="text-green-600"><i class="fas fa-check-circle"></i> Profitable</span>'
+                        : premiumRatio <= 85 
+                            ? '<span class="text-amber-600"><i class="fas fa-exclamation-circle"></i> Marginal</span>'
+                            : premiumRatio <= 100
+                                ? '<span class="text-red-600"><i class="fas fa-times-circle"></i> Loss Risk</span>'
+                                : '<span class="text-red-600"><i class="fas fa-skull-crossbones"></i> Loss Making</span>';
+                }
+                
+                if(amt) amt.textContent = `Premium: ${formatCurrency(premium)}`;
+                
+                const card = document.getElementById('premiumKpiCard');
+                if(card) {
+                    card.classList.add('active');
+                    setTimeout(() => card.classList.remove('active'), 500);
+                }
+            } else {
+                if(kpiRatio) kpiRatio.textContent = '--%';
+                if(ratioBar) ratioBar.style.width = '0%';
+                if(trend) trend.innerHTML = '<span class="text-gray-400">Enter premium</span>';
+                if(amt) amt.textContent = 'Premium: Not set';
+            }
+            
+            if (charts.gauge) {
+                updateGaugeChart();
+            }
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeDrillModal();
+                closeShareModal();
+            }
+            if (e.ctrlKey && e.key === 'r') {
+                e.preventDefault();
+                resetFilters();
+            }
+        });
+
+        // ============ VIEW-ONLY & SHARING FUNCTIONALITY ============
+
+        const JSONBIN_API_KEY = '$2a$10$UBVOOvQrNZ4UFEp7hXgc8.jAu2cXuFsXC25ygmI5cdD44jeyI/B.S';
+
+        let isViewOnlyMode = false;
+
+        async function loadSharedDataFromJSONBin(binId) {
+            showLoading(true);
+            document.getElementById('loadingOverlay').querySelector('p').textContent = 'Loading shared dashboard...';
+            
+            try {
+                const response = await fetch(`https://api.jsonbin.io/v3/b/${binId}`, {
+                    method: 'GET',
+                    headers: {
+                        'X-Master-Key': JSONBIN_API_KEY
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to load: ${response.status} ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                const parsed = result.record;
+                
+                if (parsed && parsed.data) {
+                    rawData = parsed.data;
+                    columnMapping = parsed.columnMapping || {};
+                    
+                    if (parsed.premium) {
+                        const premiumInput = document.getElementById('premiumInput');
+                        if (premiumInput) premiumInput.value = parsed.premium;
+                    }
+                    
+                    applyViewOnlyMode();
+                    
+                    const uploadSection = document.getElementById('uploadSection');
+                    if (uploadSection) uploadSection.style.display = 'none';
+                    
+                    document.getElementById('lastUpdated').textContent = `Shared: ${parsed.createdAt || 'View-only'}`;
+                    
+                    detectGroupField();
+                    populateFilters();
+                    filteredData = [...rawData];
+
+                    const dashboardContent = document.getElementById('dashboardContent');
+                    if (dashboardContent) {
+                        dashboardContent.classList.remove('hidden');
+                    }
+
+                    updateDashboard();
+                    updatePremiumRatio();
+                    
+                    const shareBtn = document.getElementById('shareBtn');
+                    if (shareBtn) shareBtn.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Load error:', error);
+                
+                // Try to load sample data as fallback
+                alert('Unable to load shared data. Loading sample data instead. Error: ' + error.message);
+                loadSampleData();
+            }
+            
+            showLoading(false);
+        }
+
+        async function loadSharedDataFromDataString(dataStr) {
+            showLoading(true);
+            document.getElementById('loadingOverlay').querySelector('p').textContent = 'Loading shared dashboard...';
+
+            try {
+                const decodedJson = atob(decodeURIComponent(dataStr));
+                const parsed = JSON.parse(decodedJson);
+
+                if (parsed && parsed.data) {
+                    rawData = parsed.data;
+                    columnMapping = parsed.columnMapping || {};
+
+                    if (parsed.premium) {
+                        const premiumInput = document.getElementById('premiumInput');
+                        if (premiumInput) premiumInput.value = parsed.premium;
+                    }
+
+                    applyViewOnlyMode();
+
+                    const uploadSection = document.getElementById('uploadSection');
+                    if (uploadSection) uploadSection.style.display = 'none';
+
+                    document.getElementById('lastUpdated').textContent = `Shared: ${parsed.createdAt || 'View-only'}`;
+
+                    detectGroupField();
+                    populateFilters();
+                    filteredData = [...rawData];
+
+                    const dashboardContent = document.getElementById('dashboardContent');
+                    if (dashboardContent) {
+                        dashboardContent.classList.remove('hidden');
+                    }
+
+                    updateDashboard();
+                    updatePremiumRatio();
+
+                    const shareBtn = document.getElementById('shareBtn');
+                    if (shareBtn) shareBtn.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Load (embedded data) error:', error);
+                alert('Error loading shared dashboard: ' + error.message);
+            }
+
+            showLoading(false);
+        }
+
+        async function saveDataToJSONBin() {
+            const premiumVal = document.getElementById('premiumInput')?.value || 0;
+            const dataToSave = {
+                data: rawData,
+                columnMapping: columnMapping,
+                premium: premiumVal,
+                createdAt: new Date().toLocaleString(),
+                recordCount: rawData.length
+            };
+            
+            try {
+                const response = await fetch('https://api.jsonbin.io/v3/b', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Master-Key': JSONBIN_API_KEY,
+                        'X-Bin-Private': 'false'
+                    },
+                    body: JSON.stringify(dataToSave)
+                });
+                
+                if (!response.ok) throw new Error('Failed to save');
+                
+                const result = await response.json();
+                return result.metadata.id;
+            } catch (error) {
+                throw error;
+            }
+        }
+
+        function applyViewOnlyMode() {
+            document.getElementById('viewOnlyBadge').classList.remove('hidden');
+            
+            const uploadSection = document.getElementById('uploadSection');
+            if (uploadSection) uploadSection.style.display = 'none';
+            
+            const newDataBtn = document.querySelector('button[onclick="showUpload()"]');
+            if (newDataBtn) newDataBtn.classList.add('hidden');
+            
+            const versionBanner = document.getElementById('versionBanner');
+            if (versionBanner) versionBanner.style.display = 'none';
+            
+            document.title = 'Claims Dashboard (View Only)';
+        }
+
+        function openShareModal() {
+            document.getElementById('shareModal').classList.add('show');
+            document.getElementById('shareLink').value = '';
+            document.getElementById('copyStatus').classList.add('hidden');
+        }
+
+        function closeShareModal(e) {
+            if (!e || e.target === document.getElementById('shareModal')) {
+                document.getElementById('shareModal').classList.remove('show');
+            }
+        }
+
+        async function generateShareLink() {
+            const generateBtn = document.querySelector('button[onclick="generateShareLink()"]');
+            const originalText = generateBtn.innerHTML;
+            
+            // Get the current URL properly for both local and hosted environments
+            let baseUrl = '';
+            if (window.location.protocol === 'file:') {
+                // For local file:// protocol, we need to provide instructions
+                alert('⚠️ Local File Sharing Limitation\n\nWhen running from a local file, the share link will only work if the recipient also opens the HTML file locally.\n\nFor best results, host this file on a web server or use GitHub Pages.');
+                baseUrl = window.location.href.split('#')[0].split('?')[0];
+            } else {
+                // For http/https protocols
+                const url = new URL(window.location.href);
+                url.search = ''; // Remove existing query parameters
+                url.hash = ''; // Remove hash
+                baseUrl = url.toString();
+            }
+
+            try {
+                generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
+                generateBtn.disabled = true;
+                
+                const binId = await saveDataToJSONBin();
+                const shareUrl = `${baseUrl}?mode=view&id=${binId}`;
+                
+                document.getElementById('shareLink').value = shareUrl;
+                
+                generateBtn.innerHTML = '<i class="fas fa-check"></i> Link Ready!';
+                setTimeout(() => {
+                    generateBtn.innerHTML = originalText;
+                    generateBtn.disabled = false;
+                }, 2000);
+                
+                // Also update the share modal to show proper instructions
+                updateShareInstructions(baseUrl);
+                
+            } catch (error) {
+                console.error('Cloud share failed, falling back to offline link:', error);
+                try {
+                    const premiumVal = document.getElementById('premiumInput')?.value || 0;
+                    const dataToSave = {
+                        data: rawData,
+                        columnMapping: columnMapping,
+                        premium: premiumVal,
+                        createdAt: new Date().toLocaleString(),
+                        recordCount: rawData.length
+                    };
+                    const encoded = encodeURIComponent(btoa(JSON.stringify(dataToSave)));
+                    const shareUrl = `${baseUrl}?mode=view&data=${encoded}`;
+                    document.getElementById('shareLink').value = shareUrl;
+                    
+                    generateBtn.innerHTML = '<i class="fas fa-link"></i> Offline Link Ready';
+                    
+                    // Update instructions for offline mode
+                    document.getElementById('shareInstructions').innerHTML = `
+                        <div class="flex items-start gap-3">
+                            <i class="fas fa-file-export text-green-600 mt-1"></i>
+                            <div>
+                                <p class="text-sm text-green-800 font-medium">📁 Offline Sharing (Works Locally)</p>
+                                <p class="text-sm text-green-700 mt-1">Your data is embedded in the link. Works when both sender and recipient have the HTML file locally. For online sharing, ensure JSONBin API key is valid.</p>
+                            </div>
+                        </div>
+                    `;
+                    
+                } catch (innerError) {
+                    alert('Error generating share link: ' + innerError.message);
+                    generateBtn.innerHTML = originalText;
+                } finally {
+                    generateBtn.disabled = false;
+                }
+            }
+        }
+
+        function updateShareInstructions(baseUrl) {
+            const instructionEl = document.getElementById('shareInstructions');
+            if (!instructionEl) return;
+            
+            if (baseUrl.startsWith('file://')) {
+                instructionEl.innerHTML = `
+                    <div class="flex items-start gap-3">
+                        <i class="fas fa-laptop-house text-green-600 mt-1"></i>
+                        <div>
+                            <p class="text-sm text-green-800 font-medium">📁 Local File Sharing</p>
+                            <p class="text-sm text-green-700 mt-1">Recipients must:</p>
+                            <ol class="text-xs text-green-700 mt-1 list-decimal pl-4">
+                                <li>Save the HTML file to their computer</li>
+                                <li>Open the file in their browser</li>
+                                <li>Use the shared link you provide</li>
+                            </ol>
+                            <p class="text-xs text-green-800 font-medium mt-2">For online sharing, host this file on GitHub Pages or a web server.</p>
+                        </div>
+                    </div>
+                `;
+            } else {
+                instructionEl.innerHTML = `
+                    <div class="flex items-start gap-3">
+                        <i class="fas fa-cloud text-green-600 mt-1"></i>
+                        <div>
+                            <p class="text-sm text-green-800 font-medium">☁️ Cloud Sharing (Works Everywhere!)</p>
+                            <p class="text-sm text-green-700 mt-1">Your data is securely stored online using JSONBin. Share with anyone - they can open the link in any browser, any device! No signup required.</p>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function copyShareLink() {
+            const linkInput = document.getElementById('shareLink');
+            if (!linkInput) return;
+            const link = (linkInput.value || '').trim();
+
+            if (!link || link.includes('Uploading')) {
+                alert('Please generate the link first by clicking "Generate Link".');
+                return;
+            }
+
+            const showSuccess = () => {
+                const statusEl = document.getElementById('copyStatus');
+                if (!statusEl) return;
+                statusEl.classList.remove('hidden');
+                setTimeout(() => statusEl.classList.add('hidden'), 3000);
+            };
+
+            // Preferred modern API (requires secure context: https or localhost)
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(link)
+                    .then(showSuccess)
+                    .catch(err => {
+                        console.warn('navigator.clipboard failed, falling back to execCommand:', err);
+                        fallbackCopy();
+                    });
+            } else {
+                // Fallback for file:// or non-secure contexts
+                fallbackCopy();
+            }
+
+            function fallbackCopy() {
+                try {
+                    // Temporarily make input editable & select its content
+                    const wasReadOnly = linkInput.hasAttribute('readonly');
+                    if (wasReadOnly) linkInput.removeAttribute('readonly');
+
+                    linkInput.focus();
+                    linkInput.select();
+                    linkInput.setSelectionRange(0, linkInput.value.length);
+
+                    const successful = document.execCommand('copy');
+
+                    if (wasReadOnly) linkInput.setAttribute('readonly', 'readonly');
+                    window.getSelection().removeAllRanges();
+
+                    if (successful) {
+                        showSuccess();
+                    } else {
+                        throw new Error('document.execCommand("copy") returned false');
+                    }
+                } catch (err) {
+                    console.error('Fallback clipboard copy failed:', err);
+                    alert('Could not copy automatically. Please select the link text and press Ctrl+C (Cmd+C on Mac) to copy it.');
+                }
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (window.isViewOnlyFromURL && window.sharedDataId) {
+                isViewOnlyMode = true;
+                
+                const uploadSection = document.getElementById('uploadSection');
+                if (uploadSection) uploadSection.style.display = 'none';
+                
+                if (window.isJSONBinShare) {
+                    loadSharedDataFromJSONBin(window.sharedDataId);
+                } else {
+                    loadSharedDataFromDataString(window.sharedDataId);
+                }
+            }
+        });
+    </script>
+</body>
+</html>
